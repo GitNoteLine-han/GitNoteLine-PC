@@ -10,15 +10,32 @@
 
   <div class="container">
     <header class="header fade-in">
-      <h1 class="header-title">开始使用</h1>
+      <h1 class="header-title">开始使用 GitNoteLine</h1>
       <p class="header-subtitle">设置你的 Git 身份信息</p>
     </header>
 
     <div class="card fade-in">
-      <div id="git-hint" class="hint-banner hidden">
-        检测到 Git 全局配置，已自动填入
+      <!-- Git config confirm (shown when git config detected) -->
+      <div id="git-confirm" class="hidden">
+        <p class="card-title">检测到 Git 全局配置</p>
+        <div class="git-info">
+          <div class="git-info-row">
+            <span class="git-info-label">用户名</span>
+            <span class="git-info-value" id="git-name"></span>
+          </div>
+          <div class="git-info-row">
+            <span class="git-info-label">邮箱</span>
+            <span class="git-info-value" id="git-email"></span>
+          </div>
+        </div>
+        <p class="git-confirm-question">是否使用以上信息？</p>
+        <div class="actions">
+          <button id="btn-use-git" class="btn btn-primary" style="flex:1">使用</button>
+          <button id="btn-manual" class="btn btn-secondary" style="flex:1">手动填写</button>
+        </div>
       </div>
 
+      <!-- Manual form (shown when no git config or user clicks "手动填写") -->
       <form id="form-step1" class="form" novalidate>
         <div class="field">
           <label class="field-label" for="field-name">用户名</label>

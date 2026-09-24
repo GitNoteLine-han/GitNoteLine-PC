@@ -70,9 +70,10 @@ def get_identity_prefill() -> dict:
     }
 
 
-def init_step1(db_path: str, name: str, email: str) -> None:
+def init_step1(db_path: str, name: str, email: str, source: str = "manual") -> None:
     """Create the database and persist identity settings."""
     conn = ensure_db(db_path)
     set_setting(conn, "git_name", name)
     set_setting(conn, "git_email", email)
+    set_setting(conn, "identity_source", source)
     conn.close()

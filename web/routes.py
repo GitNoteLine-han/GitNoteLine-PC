@@ -43,6 +43,9 @@ def index():
 
 @main_bp.route("/init/1")
 def init_page():
+    db_path = current_app.config.get("DB_PATH", "")
+    if db_path and os.path.exists(db_path):
+        return redirect("/init/2")
     return current_app.send_static_file("init-1.html")
 
 
@@ -73,6 +76,10 @@ def api_init_step1():
 
     name = (data.get("name") or "").strip()
     email = (data.get("email") or "").strip()
+    source = (data.get("source") or "manual").strip()
+
+    if source not in ("git", "manual"):
+        source = "manual"
 
     if not name:
         return jsonify({"ok": False, "error": "用户名不能为空"}), 400
@@ -81,6 +88,6 @@ def api_init_step1():
 
     db_path = current_app.config.get("DB_PATH", "")
     from core.services import init_step1
-    init_step1(db_path, name, email)
+    init_step1(db_path, name, email, source)
 
     return jsonify({"ok": True})
