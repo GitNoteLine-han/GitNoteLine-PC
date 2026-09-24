@@ -13,12 +13,12 @@
     api
       .hello()
       .then((data) => {
-        statusMsg.textContent = `✅ 已连接 — ${data.message}`
-        statusMsg.className = 'status-ok'
+        statusMsg.textContent = '已连接'
+        statusMsg.classList.add('status-ok')
       })
       .catch((err) => {
-        statusMsg.textContent = `❌ 连接失败 — ${err.message}`
-        statusMsg.className = 'status-err'
+        statusMsg.textContent = '连接失败'
+        statusMsg.classList.add('status-err')
       })
   }
 

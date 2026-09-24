@@ -1,4 +1,4 @@
-"""Entry point:  python -m web [--debug] [--port PORT] [--no-browser]
+"""Entry point:  python -m web [--debug] [--port PORT] [--db PATH] [--no-browser]
 
 Listens on both IPv4 (127.0.0.1) and IPv6 ([::1]) loopback via a dual-stack
 IPv6 socket bound to ::1 (Linux default: IPV6_V6ONLY=0).
@@ -15,10 +15,12 @@ import threading
 import webbrowser
 from pathlib import Path
 
-# Ensure the project root is importable (supports `python -m web` from anywhere).
+# Ensure the project root is importable.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+from core.config import config
+from core.database import get_db_path
 from web.app import create_app
 from werkzeug.serving import run_simple
 
@@ -26,11 +28,6 @@ from werkzeug.serving import run_simple
 
 
 def _find_free_port() -> int:
-    """Ask the OS for a random available port on the loopback interface.
-
-    There is a tiny TOCTOU window between releasing the probe socket and
-    the real bind in run_simple — acceptable for local development.
-    """
     with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("::1", 0))
@@ -38,13 +35,11 @@ def _find_free_port() -> int:
 
 
 def _open_browser(url: str, delay: float = 1.0) -> None:
-    """Open *url* in the default browser after a short delay."""
-
     def _open() -> None:
         try:
             webbrowser.open(url)
         except Exception:
-            pass  # headless / no desktop — just print the URL
+            pass
 
     threading.Timer(delay, _open).start()
 
@@ -66,6 +61,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Specific port (default: random available port)",
     )
     parser.add_argument(
+        "--db",
+        type=str,
+        default="",
+        help="Custom path to userdata.db (directory or .db file)",
+    )
+    parser.add_argument(
         "--no-browser",
         action="store_true",
         help="Do not open the browser automatically",
@@ -80,7 +81,6 @@ def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
 
     # ── Resolve port ────────────────────────────────────────────
-    # reloader re-executes the process; communicate the port via env.
     if args.port:
         port = args.port
     elif args.debug and "GITNOTELINE_PORT" in os.environ:
@@ -90,28 +90,31 @@ def main(argv: list[str] | None = None) -> None:
         if args.debug:
             os.environ["GITNOTELINE_PORT"] = str(port)
 
+    # ── Resolve DB path ─────────────────────────────────────────
+    db_path = str(
+        Path(args.db).resolve() if args.db else get_db_path()
+    )
+    config.db_path = db_path
+
     # ── Application ─────────────────────────────────────────────
-    app = create_app()
+    app = create_app(db_path=db_path)
 
     # ── Banner ──────────────────────────────────────────────────
-    # The reloader runs our code twice (parent-reloader + child-server).
-    # Only print the banner in the *child* so it doesn't re-appear on
-    # every reload, but non-debug mode has no reloader so print always.
     is_reloader_child = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
     if not args.debug or is_reloader_child:
+        db_status = "未初始化" if not os.path.exists(db_path) else "就绪"
         print(
             f"\n"
             f" 🌐 GitNoteLine Web\n"
             f" ─────────────────\n"
-            f" URL:  http://gitnoteline.localhost:{port}\n"
-            f" Mode: {'DEBUG' if args.debug else 'production'}\n"
-            f" PID:  {os.getpid()}\n"
+            f" URL:     http://gitnoteline.localhost:{port}\n"
+            f" DB:      {db_path}  [{db_status}]\n"
+            f" Mode:    {'DEBUG' if args.debug else 'production'}\n"
+            f" PID:     {os.getpid()}\n"
         )
 
     # ── Browser ─────────────────────────────────────────────────
     if not args.no_browser:
-        # Non-debug  → open once in the main (and only) process.
-        # Debug      → open only in the reloader child (one shot).
         if not args.debug or is_reloader_child:
             _open_browser(f"http://gitnoteline.localhost:{port}")
 

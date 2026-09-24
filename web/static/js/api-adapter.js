@@ -23,5 +23,14 @@
       const res = await fetch('/api/hello')
       return res.json()
     },
+
+    /** GET /api/init/prefill → { name, email, source } */
+    async initPrefill() {
+      if (isPywebview) {
+        return await pywebview.api.get_identity_prefill()
+      }
+      const res = await fetch('/api/init/prefill')
+      return res.json()
+    },
   }
 })()

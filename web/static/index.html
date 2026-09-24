@@ -4,31 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GitNoteLine</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
-  <div id="app">
-    <header>
-      <h1>📝 GitNoteLine</h1>
-      <p class="subtitle">Git-backed note taking</p>
+<body class="layout-center">
+
+  <div class="container">
+    <header class="header fade-in">
+      <h1 class="header-title">GitNoteLine</h1>
+      <p class="header-subtitle">Git 驱动的笔记管理</p>
     </header>
 
-    <main>
-      <section class="card" id="status-card">
-        <h2>连接状态</h2>
-        <p id="status-message">正在连接…</p>
-      </section>
+    <section class="card fade-in">
+      <h2 class="card-title">连接状态</h2>
+      <p class="status-text" id="status-message">正在连接…</p>
+    </section>
 
-      <section class="card">
-        <h2>快速测试</h2>
-        <button id="btn-hello" class="btn">呼叫 API</button>
-        <pre id="api-output" class="output-box"></pre>
-      </section>
-    </main>
+    <section class="card fade-in">
+      <h2 class="card-title">快速测试</h2>
+      <div class="actions">
+        <button id="btn-hello" class="btn btn-primary">呼叫 API</button>
+      </div>
+      <pre id="api-output" class="output-box"></pre>
+    </section>
   </div>
 
-  <!-- api-adapter must load first — it's the bridge for pywebview -->
-  <script src="js/api-adapter.js"></script>
-  <script src="js/app.js"></script>
+  <script src="/js/api-adapter.js"></script>
+  <script src="/js/app.js"></script>
 </body>
 </html>

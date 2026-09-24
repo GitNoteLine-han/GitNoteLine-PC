@@ -12,6 +12,7 @@ class RuntimeConfig:
 
     port: int = 0
     debug: bool = False
+    db_path: str = ""          # absolute path to userdata.db
     base_url: str = field(init=False)
 
     def __post_init__(self) -> None:
