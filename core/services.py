@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import os
+import platform
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+import yaml
+
 from core.database import ensure_db, set_setting, get_data_dir
-from core.credentials import store_credential
+from core.credentials import store_credential, get_credential
 
 
 # ── Identity helpers ────────────────────────────────────────────────
@@ -92,6 +96,72 @@ def get_default_repo_path(remote_url: str = "") -> str:
     repo_name = _extract_repo_name(remote_url)
     data_dir = get_data_dir()
     return str(data_dir / "repos" / repo_name)
+
+
+def _get_device_name() -> str:
+    """Get the current device name."""
+    return platform.node() or os.getenv("HOSTNAME") or "unknown-device"
+
+
+def _write_gitnoteline_yaml(repo_path: Path) -> None:
+    """Write or update .gitnoteline.yaml in the repository.
+    
+    Adds this device to the devices list with joined and last_sync timestamps.
+    """
+    yaml_path = repo_path / ".gitnoteline.yaml"
+    device_name = _get_device_name()
+    now = datetime.now().strftime("%Y-%m-%d")
+    
+    # Read existing YAML if present
+    data = {"version": 1, "devices": []}
+    if yaml_path.exists():
+        try:
+            with open(yaml_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or data
+        except Exception:
+            pass
+    
+    # Find or add this device
+    devices = data.get("devices", [])
+    device_entry = None
+    for device in devices:
+        if device.get("name") == device_name:
+            device_entry = device
+            break
+    
+    if device_entry:
+        # Update last_sync for existing device
+        device_entry["last_sync"] = now
+    else:
+        # Add new device
+        devices.append({
+            "name": device_name,
+            "joined": now,
+            "last_sync": now,
+        })
+    
+    data["devices"] = devices
+    
+    # Write YAML
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
+def _rollback_repo(conn, repo_path: Path, repo_id: int, credential_id: int) -> None:
+    """Rollback: delete repo directory and database records on failure."""
+    import shutil
+    
+    # Delete local repository directory
+    if repo_path.exists():
+        shutil.rmtree(repo_path, ignore_errors=True)
+    
+    # Delete repository record
+    conn.execute("DELETE FROM repositories WHERE id = ?", (repo_id,))
+    
+    # Delete credential record
+    conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+    
+    conn.commit()
 
 
 # ── Public API ───────────────────────────────────────────────────────
@@ -187,8 +257,14 @@ def init_step2_1(
             timeout=10,
         )
         if result.returncode != 0:
+            # Rollback: delete credential and directory
+            conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+            conn.commit()
+            conn.close()
+            import shutil
+            shutil.rmtree(repo_path, ignore_errors=True)
             return {"ok": False, "error": f"Git 初始化失败: {result.stderr}"}
-        
+
         # Add remote if URL provided
         if remote_url:
             result = subprocess.run(
@@ -199,6 +275,12 @@ def init_step2_1(
                 timeout=10,
             )
             if result.returncode != 0:
+                # Rollback: delete credential and directory
+                conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+                conn.commit()
+                conn.close()
+                import shutil
+                shutil.rmtree(repo_path, ignore_errors=True)
                 return {"ok": False, "error": f"添加远程仓库失败: {result.stderr}"}
         
         # Create repository record
@@ -207,12 +289,115 @@ def init_step2_1(
             (str(repo_path), remote_url, credential_id),
         )
         repo_id = cursor.lastrowid
-        
+
         conn.commit()
+
+        # ── Verification flow: pull → write YAML → push ──────────
+        if remote_url:
+            # Get identity settings for git config
+            git_name = conn.execute("SELECT value FROM settings WHERE key = 'git_name'").fetchone()
+            git_email = conn.execute("SELECT value FROM settings WHERE key = 'git_email'").fetchone()
+            
+            if git_name and git_email:
+                # Configure git user for this repo
+                subprocess.run(
+                    ["git", "config", "user.name", git_name["value"]],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+                subprocess.run(
+                    ["git", "config", "user.email", git_email["value"]],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+            
+            # Get credential for authentication
+            token = get_credential(conn, credential_id)
+            
+            if token:
+                # Build authenticated URL for HTTPS
+                parsed = urlparse(remote_url)
+                if parsed.scheme in ("http", "https"):
+                    # Insert token into URL: https://token@github.com/...
+                    auth_url = remote_url.replace(
+                        f"{parsed.scheme}://{parsed.netloc}",
+                        f"{parsed.scheme}://{token}@{parsed.netloc}"
+                    )
+                else:
+                    auth_url = remote_url
+                
+                # Temporarily set authenticated remote
+                subprocess.run(
+                    ["git", "remote", "set-url", "origin", auth_url],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+                
+                # Step 1: git pull (handle empty remote gracefully)
+                pull_result = subprocess.run(
+                    ["git", "pull", "origin", "main", "--allow-unrelated-histories"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=30,
+                )
+                
+                # Check if pull failed due to auth or network (not just empty remote)
+                if pull_result.returncode != 0:
+                    stderr = pull_result.stderr.lower()
+                    # Empty remote is OK, continue
+                    if "no commits" not in stderr and "no tracking information" not in stderr:
+                        # Rollback before returning error
+                        _rollback_repo(conn, repo_path, repo_id, credential_id)
+                        conn.close()
+                        if "authentication" in stderr or "403" in stderr or "401" in stderr:
+                            return {"ok": False, "error": "认证失败，请检查凭证是否正确"}
+                        elif "could not resolve" in stderr or "network" in stderr:
+                            return {"ok": False, "error": "网络错误，无法连接远程仓库"}
+                        else:
+                            return {"ok": False, "error": f"拉取失败: {pull_result.stderr}"}
+                
+                # Step 2: Write .gitnoteline.yaml
+                try:
+                    _write_gitnoteline_yaml(repo_path)
+                except Exception as e:
+                    # Rollback before returning error
+                    _rollback_repo(conn, repo_path, repo_id, credential_id)
+                    conn.close()
+                    return {"ok": False, "error": f"写入配置文件失败: {str(e)}"}
+                
+                # Step 3: git add + commit + push
+                subprocess.run(
+                    ["git", "add", ".gitnoteline.yaml"],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+                
+                commit_result = subprocess.run(
+                    ["git", "commit", "-m", "Initialize GitNoteLine repository"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=10,
+                )
+                
+                # Commit might fail if nothing to commit (YAML already existed and unchanged)
+                # That's OK, continue with push
+                
+                push_result = subprocess.run(
+                    ["git", "push", "origin", "main"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=30,
+                )
+                
+                if push_result.returncode != 0:
+                    # Rollback before returning error
+                    _rollback_repo(conn, repo_path, repo_id, credential_id)
+                    conn.close()
+                    stderr = push_result.stderr.lower()
+                    if "authentication" in stderr or "403" in stderr or "401" in stderr:
+                        return {"ok": False, "error": "推送失败，认证失败，请检查凭证"}
+                    else:
+                        return {"ok": False, "error": f"推送失败: {push_result.stderr}"}
+                
+                # Restore original URL (without token)
+                subprocess.run(
+                    ["git", "remote", "set-url", "origin", remote_url],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+
         conn.close()
-        
         return {"ok": True, "credential_id": credential_id, "repo_id": repo_id}
-        
+
     except Exception as e:
         conn.close()
         return {"ok": False, "error": str(e)}
