@@ -10,7 +10,7 @@ GitNoteLine 是一个以 Git 为后端的笔记管理工具。PC 端是本地优
 
 ```
 GitNoteLine-PC/
-├── core/           # 共享业务逻辑（web 和 desktop 共用）
+├── core/           # 共享业务逻辑层
 │   ├── config.py       # 运行时配置单例
 │   ├── database.py     # 数据目录解析 + SQLite 操作
 │   └── services.py     # 业务服务（身份、Git 操作等）
@@ -19,20 +19,14 @@ GitNoteLine-PC/
 │   ├── app.py          # Flask 工厂函数
 │   ├── routes.py       # 路由 + API
 │   └── static/         # 前端（纯 HTML/CSS/JS，无框架）
-├── desktop/        # pywebview 桌面入口（尚未实现）
 └── requirements.txt
 ```
 
-### 双入口设计
+### 访问方式
 
-项目设计为两个独立的入口，共享 `core/` 业务逻辑：
+当前通过浏览器访问本地 Flask 服务（`http://gitnoteline.localhost:<port>`），未来可能支持本地 webview 窗口。
 
-| 入口 | 技术栈 | 状态 |
-|---|---|---|
-| `web/` | Flask + 浏览器 | ✅ 已实现 |
-| `desktop/` | pywebview + 原生窗口 | 🔲 待实现 |
-
-**为什么分两个入口：** 用户希望同一套业务逻辑既能跑在浏览器里（开发调试方便），也能打包成独立桌面窗口（分发方便）。
+`core/` 作为共享业务逻辑层，无论哪种访问方式都复用同一套代码。
 
 ---
 
@@ -82,34 +76,21 @@ run_simple("::1", port, app, ...)
 ```
 static/
 ├── css/style.css          # 设计系统（psyScale 风格，白灰色调）
-├── js/api-adapter.js      # API 桥接层（Flask fetch / pywebview js_api）
+├── js/api-adapter.js      # API 桥接层（预留 webview 检测）
 ├── js/app.js              # 主页逻辑
 └── js/init.js             # 初始化流程逻辑
 ```
 
 **设计系统：** 参考 psyScale 项目的视觉风格——渐变背景、白色卡片 + 阴影、hover 上浮、fadeIn 动画。使用 CSS 变量统一管理颜色、圆角、阴影。
 
-### 4. pywebview 通信方案（已选定）
+### 4. 本地 webview（未来可能）
 
-**方案 A：嵌入式 Flask**
-- pywebview 窗口内启动 Flask 服务器，通过 HTTP 通信
-- 优点：Web 和 Desktop 完全共用同一套路由代码
-- 缺点：多一个 HTTP 层，端口管理复杂
+如果将来需要原生窗口体验，可能的方案：
 
-**方案 B：pywebview js_api 直调（✅ 已选定）**
-- pywebview 通过 `window.pywebview.api` 直接调用 Python 函数
-- `api-adapter.js` 检测运行环境，自动切换 transport
-- 优点：无 HTTP 开销，更轻量
-- 缺点：需要为 pywebview 写一套暴露的 API 类
+- **方案 A：嵌入式 Flask** — webview 内启动 Flask，通过 HTTP 通信。优点是完全复用现有路由，缺点是端口管理。
+- **方案 B：js_api 直调** — webview 直接调用 Python 函数，无 HTTP 开销。但需要额外维护一套暴露的 API 类。
 
-```javascript
-// api-adapter.js 的切换逻辑
-if (typeof window.pywebview !== 'undefined') {
-    // Desktop: pywebview.api.method()
-} else {
-    // Web: fetch('/api/...')
-}
-```
+当前 `api-adapter.js` 已预留了环境检测逻辑，未来接入 webview 时只需补充对应 transport。
 
 ### 5. 初始化流程
 
@@ -158,7 +139,7 @@ if (typeof window.pywebview !== 'undefined') {
 - [ ] Git 操作封装 — commit、push、pull、diff
 
 ### 中期
-- [ ] `desktop/` — pywebview 桌面入口
+- [ ] 本地 webview 窗口（可选）
 - [ ] 笔记编辑器 — Markdown 编辑 + 实时预览
 - [ ] 搜索功能 — 全文搜索笔记内容
 
@@ -193,5 +174,5 @@ if (typeof window.pywebview !== 'undefined') {
 1. **数据不离开本机** — 所有数据存在用户本机，不依赖云服务
 2. **虚拟环境在项目外** — `../.env`，项目目录保持干净
 3. **零前端构建** — 不用 npm/webpack，浏览器直接跑
-4. **core/ 是共享层** — web 和 desktop 入口共用，不重复实现业务逻辑
+4. **core/ 是共享层** — 业务逻辑与访问方式解耦，未来接入 webview 时无需重写
 5. **Git 是真相来源** — 笔记的版本历史由 Git 管理，应用不重复造版本控制

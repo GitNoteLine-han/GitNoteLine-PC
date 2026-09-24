@@ -71,6 +71,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Do not open the browser automatically",
     )
+    parser.add_argument(
+        "--only-server",
+        action="store_true",
+        help="Server-only mode: listen on 0.0.0.0:8080, no browser",
+    )
     return parser.parse_args(argv)
 
 
@@ -79,6 +84,38 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
+
+    # ── Server-only mode ────────────────────────────────────────
+    if args.only_server:
+        # Try 0.0.0.0:8080, fall back to random port
+        host = "0.0.0.0"
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind((host, 8080))
+            port = 8080
+        except OSError:
+            port = _find_free_port()
+        
+        db_path = str(
+            Path(args.db).resolve() if args.db else get_db_path()
+        )
+        config.db_path = db_path
+        app = create_app(db_path=db_path)
+        
+        db_status = "未初始化" if not os.path.exists(db_path) else "就绪"
+        print(
+            f"\n"
+            f" 🌐 GitNoteLine Web (Server Mode)\n"
+            f" ─────────────────────────────────\n"
+            f" URL:     http://{host}:{port}\n"
+            f" DB:      {db_path}  [{db_status}]\n"
+            f" Mode:    production\n"
+            f" PID:     {os.getpid()}\n"
+        )
+        
+        run_simple(host, port, app, threaded=True)
+        return
 
     # ── Resolve port ────────────────────────────────────────────
     if args.port:

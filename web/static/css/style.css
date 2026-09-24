@@ -425,6 +425,130 @@ body {
   margin-bottom: 14px;
 }
 
+/* ── Option cards (init-2) ──────────────────────────────────────── */
+
+.option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option-card {
+  display: block;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.option-card:hover {
+  border-color: var(--blue-200);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+  background: var(--gray-50);
+}
+
+.option-card:active {
+  transform: translateY(0);
+  background: var(--gray-100);
+}
+
+.option-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.option-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gray-800);
+  letter-spacing: -0.01em;
+}
+
+.option-card-desc {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+  line-height: 1.5;
+}
+
+.option-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--blue-500);
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+
+/* ── Host display ───────────────────────────────────────────────── */
+
+.host-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-sm);
+  margin-top: -8px;
+}
+
+.host-label {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+}
+
+.host-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+
+/* ── Radio group ────────────────────────────────────────────────── */
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--gray-700);
+}
+
+.radio-item input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--blue-500);
+}
+
+/* ── Warning banner ─────────────────────────────────────────────── */
+
+.warning-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: #dc2626;
+  line-height: 1.5;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────── */
 
 @media (max-width: 480px) {

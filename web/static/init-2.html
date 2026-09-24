@@ -11,15 +11,43 @@
   <div class="container">
     <header class="header fade-in">
       <h1 class="header-title">设置仓库</h1>
-      <p class="header-subtitle">身份信息已保存</p>
+      <p class="header-subtitle">选择你的笔记存储方式</p>
     </header>
 
-    <section class="card fade-in">
-      <div class="empty-state">
-        <h2 class="empty-title">即将开放</h2>
-        <p class="empty-desc">仓库设置功能正在开发中</p>
-      </div>
-    </section>
+    <div class="option-list fade-in">
+      <!-- Option 1: 创建新的在线仓库 -->
+      <a href="/init/2/1" class="option-card">
+        <div class="option-card-header">
+          <h2 class="option-card-title">创建新的在线仓库</h2>
+          <span class="option-badge">推荐</span>
+        </div>
+        <p class="option-card-desc">在 GitHub 或其他平台创建新仓库，多设备同步</p>
+      </a>
+
+      <!-- Option 2: 同步已有云仓库 -->
+      <a href="/init/2/2" class="option-card">
+        <div class="option-card-header">
+          <h2 class="option-card-title">同步已有云仓库</h2>
+        </div>
+        <p class="option-card-desc">从远程仓库 Clone，与已有笔记同步</p>
+      </a>
+
+      <!-- Option 3: 选择已有本地仓库 -->
+      <a href="/init/2/3" class="option-card">
+        <div class="option-card-header">
+          <h2 class="option-card-title">选择已有本地仓库</h2>
+        </div>
+        <p class="option-card-desc">关联本机已有的 Git 仓库作为笔记目录</p>
+      </a>
+
+      <!-- Option 4: 创建本地仓库，暂不同步 -->
+      <a href="/init/2/4" class="option-card">
+        <div class="option-card-header">
+          <h2 class="option-card-title">创建本地仓库</h2>
+        </div>
+        <p class="option-card-desc">仅在本机创建仓库，暂不配置远程同步</p>
+      </a>
+    </div>
   </div>
 
 </body>

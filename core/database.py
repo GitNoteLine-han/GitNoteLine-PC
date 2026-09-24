@@ -52,12 +52,40 @@ def ensure_db(db_path: str | Path) -> sqlite3.Connection:
 
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
+    
+    # Settings table (key-value store)
     conn.execute(
         """CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
         )"""
     )
+    
+    # Credentials table (encrypted secrets stored here)
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS credentials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            host TEXT,
+            encrypted_secret TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+    
+    # Repositories table
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS repositories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            path TEXT NOT NULL,
+            remote_url TEXT,
+            credential_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (credential_id) REFERENCES credentials(id)
+        )"""
+    )
+    
     conn.commit()
     return conn
 
