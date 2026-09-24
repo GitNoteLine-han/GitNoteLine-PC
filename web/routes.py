@@ -107,6 +107,17 @@ def api_init_step1():
     return jsonify({"ok": True})
 
 
+@main_bp.route("/api/init/step2/1/default-path")
+def api_init_step2_1_default_path():
+    """Get default local path based on remote URL."""
+    remote_url = request.args.get("remote_url", "").strip()
+    
+    from core.services import get_default_repo_path
+    default_path = get_default_repo_path(remote_url)
+    
+    return jsonify({"ok": True, "default_path": default_path})
+
+
 @main_bp.route("/api/init/step2/1", methods=["POST"])
 def api_init_step2_1():
     data = request.get_json(silent=True)

@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from urllib.parse import urlparse
 
-from core.database import ensure_db, set_setting
+from core.database import ensure_db, set_setting, get_data_dir
 from core.credentials import store_credential
 
 
@@ -47,6 +47,51 @@ def _get_system_username() -> str:
         if val:
             return val
     return "user"
+
+
+def _extract_repo_name(remote_url: str) -> str:
+    """Extract repository name from remote URL.
+    
+    Examples:
+        https://github.com/user/my-notes.git -> my-notes
+        git@github.com:user/my-notes.git -> my-notes
+        my-notes -> my-notes
+    """
+    if not remote_url:
+        return "notes"
+    
+    # Handle SSH URLs like git@github.com:user/repo.git
+    if remote_url.startswith("git@"):
+        parts = remote_url.split(":")
+        if len(parts) == 2:
+            remote_url = parts[1]
+    
+    # Parse URL
+    parsed = urlparse(remote_url)
+    path = parsed.path if parsed.path else remote_url
+    
+    # Extract last component
+    name = path.rstrip("/").split("/")[-1]
+    
+    # Remove .git suffix
+    if name.endswith(".git"):
+        name = name[:-4]
+    
+    # Fallback
+    if not name:
+        name = "notes"
+    
+    return name
+
+
+def get_default_repo_path(remote_url: str = "") -> str:
+    """Get default local repository path.
+    
+    Returns: <data_dir>/repos/<repo_name>
+    """
+    repo_name = _extract_repo_name(remote_url)
+    data_dir = get_data_dir()
+    return str(data_dir / "repos" / repo_name)
 
 
 # ── Public API ───────────────────────────────────────────────────────

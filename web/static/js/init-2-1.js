@@ -20,7 +20,9 @@
 
   let currentHost = ''
 
-  // ── Host detection ───────────────────────────────────────────
+  // ── Host detection & auto-fill local path ────────────────────
+
+  let defaultPathDebounce = null
 
   remoteUrlField.addEventListener('input', () => {
     const url = remoteUrlField.value.trim()
@@ -41,7 +43,25 @@
       currentHost = ''
     }
     updateWarning()
+
+    // Auto-fill local path (debounced)
+    clearTimeout(defaultPathDebounce)
+    defaultPathDebounce = setTimeout(() => {
+      fetchDefaultPath(url)
+    }, 500)
   })
+
+  async function fetchDefaultPath(remoteUrl) {
+    try {
+      const res = await fetch(`/api/init/step2/1/default-path?remote_url=${encodeURIComponent(remoteUrl)}`)
+      const data = await res.json()
+      if (data.ok && data.default_path) {
+        localPathField.value = data.default_path
+      }
+    } catch (_err) {
+      // Ignore errors, user can still type manually
+    }
+  }
 
   // ── Credential type change ───────────────────────────────────
 
