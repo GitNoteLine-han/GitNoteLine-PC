@@ -77,7 +77,7 @@ jobs:
           printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nCategories=Office;\n' > AppDir/gitnoteline.desktop
           cp AppDir/usr/bin/GitNoteLine-PC AppDir/AppRun
           chmod +x AppDir/AppRun
-          ./appimagetool AppDir GitNoteLine-PC-x86_64.AppImage || true
+          ./appimagetool AppDir GitNoteLine-PC-x86_64.AppImage
 
       - name: Build deb
         run: |
@@ -170,7 +170,7 @@ jobs:
           printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nCategories=Office;\n' > AppDir/gitnoteline.desktop
           cp AppDir/usr/bin/GitNoteLine-PC AppDir/AppRun
           chmod +x AppRun
-          ./appimagetool AppDir GitNoteLine-PC-aarch64.AppImage || true
+          ./appimagetool AppDir GitNoteLine-PC-aarch64.AppImage
 
       - name: Build deb
         run: |
