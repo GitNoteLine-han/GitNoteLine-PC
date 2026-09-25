@@ -1,0 +1,169 @@
+name: Build Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      author_message:
+        description: '作者心语（彩蛋，留空则无）'
+        required: false
+        default: ''
+
+jobs:
+  # ── Windows x64 ────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write BUILD_NOTICE
+        shell: bash
+        run: |
+          echo "GitNoteLine-PC testing" > BUILD_NOTICE
+          echo "构建于 $(date -u '+%Y-%m-%d %H:%M UTC') · windows-x64 exe" >> BUILD_NOTICE
+          if [ -n "${{ github.event.inputs.author_message }}" ]; then
+            echo "\"${{ github.event.inputs.author_message }}\"" >> BUILD_NOTICE
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r requirements.txt pyinstaller
+
+      - run: pyinstaller gitnoteline.spec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GitNoteLine-PC-windows-x64
+          path: dist/GitNoteLine-PC.exe
+
+  # ── Linux x64 (AppImage + deb) ─────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write BUILD_NOTICE
+        run: |
+          echo "GitNoteLine-PC testing" > BUILD_NOTICE
+          echo "构建于 $(date -u '+%Y-%m-%d %H:%M UTC') · linux-x64" >> BUILD_NOTICE
+          if [ -n "${{ github.event.inputs.author_message }}" ]; then
+            echo "\"${{ github.event.inputs.author_message }}\"" >> BUILD_NOTICE
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r requirements.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller gitnoteline.spec
+
+      - name: Build AppImage
+        run: |
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.app -O appimagetool
+          chmod +x appimagetool
+          mkdir -p AppDir/usr/bin
+          cp dist/GitNoteLine-PC AppDir/usr/bin/
+          printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nCategories=Office;\n' > AppDir/gitnoteline.desktop
+          cp AppDir/usr/bin/GitNoteLine-PC AppDir/AppRun
+          chmod +x AppDir/AppRun
+          ./appimagetool AppDir GitNoteLine-PC-x86_64.AppImage || true
+
+      - name: Build deb
+        run: |
+          mkdir -p deb-pkg/DEBIAN deb-pkg/usr/bin
+          cp dist/GitNoteLine-PC deb-pkg/usr/bin/
+          printf 'Package: gitnoteline-pc\nVersion: 0.1.0~testing\nArchitecture: amd64\nMaintainer: Hanguang <hanguang@hanguangxingchen.top>\nDescription: Git-backed note management tool\n' > deb-pkg/DEBIAN/control
+          dpkg-deb --build deb-pkg GitNoteLine-PC_amd64.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GitNoteLine-PC-linux-x64
+          path: |
+            dist/GitNoteLine-PC
+            GitNoteLine-PC-x86_64.AppImage
+            GitNoteLine-PC_amd64.deb
+
+  # ── macOS ARM64 ────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write BUILD_NOTICE
+        run: |
+          echo "GitNoteLine-PC testing" > BUILD_NOTICE
+          echo "构建于 $(date -u '+%Y-%m-%d %H:%M UTC') · macos-arm64 app" >> BUILD_NOTICE
+          if [ -n "${{ github.event.inputs.author_message }}" ]; then
+            echo "\"${{ github.event.inputs.author_message }}\"" >> BUILD_NOTICE
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r requirements.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller --windowed gitnoteline.spec
+
+      - name: Zip .app bundle
+        run: |
+          mv dist/GitNoteLine-PC dist/GitNoteLine-PC.app || true
+          cd dist && zip -r ../GitNoteLine-PC-macos-arm64.zip GitNoteLine-PC.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GitNoteLine-PC-macos-arm64
+          path: GitNoteLine-PC-macos-arm64.zip
+
+  # ── Linux ARM64 (AppImage + deb) ───────────────────────────────
+  build-linux-arm:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write BUILD_NOTICE
+        run: |
+          echo "GitNoteLine-PC testing" > BUILD_NOTICE
+          echo "构建于 $(date -u '+%Y-%m-%d %H:%M UTC') · linux-arm64" >> BUILD_NOTICE
+          if [ -n "${{ github.event.inputs.author_message }}" ]; then
+            echo "\"${{ github.event.inputs.author_message }}\"" >> BUILD_NOTICE
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install -r requirements.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller gitnoteline.spec
+
+      - name: Build AppImage
+        run: |
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.app -O appimagetool
+          chmod +x appimagetool
+          mkdir -p AppDir/usr/bin
+          cp dist/GitNoteLine-PC AppDir/usr/bin/
+          printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nCategories=Office;\n' > AppDir/gitnoteline.desktop
+          cp AppDir/usr/bin/GitNoteLine-PC AppDir/AppRun
+          chmod +x AppDir/AppRun
+          ./appimagetool AppDir GitNoteLine-PC-aarch64.AppImage || true
+
+      - name: Build deb
+        run: |
+          mkdir -p deb-pkg/DEBIAN deb-pkg/usr/bin
+          cp dist/GitNoteLine-PC deb-pkg/usr/bin/
+          printf 'Package: gitnoteline-pc\nVersion: 0.1.0~testing\nArchitecture: arm64\nMaintainer: Hanguang <hanguang@hanguangxingchen.top>\nDescription: Git-backed note management tool\n' > deb-pkg/DEBIAN/control
+          dpkg-deb --build deb-pkg GitNoteLine-PC_arm64.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GitNoteLine-PC-linux-arm64
+          path: |
+            dist/GitNoteLine-PC
+            GitNoteLine-PC-aarch64.AppImage
+            GitNoteLine-PC_arm64.deb
