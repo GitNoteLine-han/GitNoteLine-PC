@@ -797,7 +797,9 @@ body {
   flex: 1;
   overflow-y: auto;
   background: var(--white);
-  padding: 32px 48px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .note-viewer-placeholder {
@@ -809,18 +811,169 @@ body {
   font-size: 1rem;
 }
 
-.note-content {
-  max-width: 800px;
-  margin: 0 auto;
+/* ── Note preview ───────────────────────────────────────────────── */
+
+.note-preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.note-content pre {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: var(--font-sans);
+.note-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 32px;
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--gray-50);
+}
+
+.note-preview-title {
   font-size: 1rem;
-  line-height: 1.7;
+  font-weight: 600;
   color: var(--gray-800);
+}
+
+.btn-edit-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--gray-500);
+  transition: all 0.15s ease;
+}
+
+.btn-edit-note:hover {
+  background: var(--gray-200);
+  color: var(--blue-500);
+}
+
+.note-preview-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 48px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Markdown preview styles */
+.note-preview-content h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 1.5rem 0 1rem;
+  color: var(--gray-900);
+  border-bottom: 1px solid var(--gray-200);
+  padding-bottom: 0.5rem;
+}
+
+.note-preview-content h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 1.2rem 0 0.8rem;
+  color: var(--gray-900);
+}
+
+.note-preview-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1rem 0 0.6rem;
+  color: var(--gray-800);
+}
+
+.note-preview-content p {
+  margin: 0.75rem 0;
+  line-height: 1.7;
+  color: var(--gray-700);
+}
+
+.note-preview-content ul,
+.note-preview-content ol {
+  margin: 0.75rem 0;
+  padding-left: 2rem;
+  line-height: 1.7;
+}
+
+.note-preview-content li {
+  margin: 0.25rem 0;
+}
+
+.note-preview-content code {
+  background: var(--gray-100);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.9em;
+  color: var(--gray-800);
+}
+
+.note-preview-content pre {
+  background: var(--gray-900);
+  color: var(--gray-100);
+  padding: 16px 20px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.note-preview-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: 0.875rem;
+}
+
+.note-preview-content blockquote {
+  border-left: 4px solid var(--blue-400);
+  margin: 1rem 0;
+  padding: 0.5rem 1rem;
+  background: var(--gray-50);
+  color: var(--gray-600);
+}
+
+.note-preview-content a {
+  color: var(--blue-500);
+  text-decoration: none;
+}
+
+.note-preview-content a:hover {
+  text-decoration: underline;
+}
+
+.note-preview-content img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  margin: 1rem 0;
+}
+
+.note-preview-content hr {
+  border: none;
+  border-top: 1px solid var(--gray-200);
+  margin: 2rem 0;
+}
+
+.note-preview-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.note-preview-content th,
+.note-preview-content td {
+  border: 1px solid var(--gray-200);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.note-preview-content th {
+  background: var(--gray-50);
+  font-weight: 600;
 }
 
 /* ── Dialog ─────────────────────────────────────────────────────── */

@@ -10,8 +10,10 @@
   const notesList = document.getElementById('notes-list')
   const btnNewNote = document.getElementById('btn-new-note')
   const notePlaceholder = document.getElementById('note-placeholder')
-  const noteContent = document.getElementById('note-content')
-  const noteText = document.getElementById('note-text')
+  const notePreview = document.getElementById('note-preview')
+  const notePreviewTitle = document.getElementById('note-preview-title')
+  const notePreviewContent = document.getElementById('note-preview-content')
+  const btnEditNote = document.getElementById('btn-edit-note')
   const newNoteDialog = document.getElementById('new-note-dialog')
   const newNoteForm = document.getElementById('new-note-form')
   const noteNameInput = document.getElementById('note-name-input')
@@ -19,13 +21,23 @@
   const dialogError = document.getElementById('dialog-error')
 
   let currentRepo = null
-  let currentNote = null
+  let currentNotePath = null
 
   // ── Initialize ───────────────────────────────────────────────
 
   async function init() {
     await loadRepos()
     await loadNotes()
+    setupEventListeners()
+  }
+
+  function setupEventListeners() {
+    // Edit button → redirect to editor
+    btnEditNote.addEventListener('click', () => {
+      if (currentNotePath) {
+        window.location.href = `/editor?path=${encodeURIComponent(currentNotePath)}&repo_id=${currentRepo}`
+      }
+    })
   }
 
   // ── Load repositories ────────────────────────────────────────
@@ -69,7 +81,7 @@
 
   function handleRepoChange() {
     const selectedValue = repoSelect.value
-    
+
     if (selectedValue === 'create-new') {
       // Redirect to init/2
       window.location.href = '/init/2'
@@ -104,14 +116,14 @@
         const item = document.createElement('div')
         item.className = 'note-item'
         item.dataset.path = note.path
-        
+
         // Show directory structure if note is in subdirectory
-        const displayName = note.name.includes('/') 
+        const displayName = note.name.includes('/')
           ? `<span class="note-dir">${note.name.split('/').slice(0, -1).join('/')}/</span>${note.name.split('/').pop()}`
           : note.name
-        
+
         item.innerHTML = `<span class="note-name">${displayName}</span>`
-        item.addEventListener('click', () => loadNote(note.path))
+        item.addEventListener('click', () => previewNote(note.path))
         notesList.appendChild(item)
       })
     } catch (err) {
@@ -120,11 +132,38 @@
     }
   }
 
-  // ── Load note content (redirect to editor) ───────────────────
+  // ── Preview note (read-only) ─────────────────────────────────
 
-  async function loadNote(notePath) {
-    // Redirect to editor page
-    window.location.href = `/editor?path=${encodeURIComponent(notePath)}&repo_id=${currentRepo}`
+  async function previewNote(notePath) {
+    // Update selected state in list
+    document.querySelectorAll('.note-item').forEach(item => {
+      item.classList.toggle('active', item.dataset.path === notePath)
+    })
+
+    currentNotePath = notePath
+
+    try {
+      const res = await fetch(`/api/notes/${encodeURIComponent(notePath)}`)
+      const data = await res.json()
+
+      if (!data.ok) {
+        console.error('Failed to load note:', data.error)
+        return
+      }
+
+      // Show preview, hide placeholder
+      notePlaceholder.style.display = 'none'
+      notePreview.style.display = 'flex'
+
+      // Set title (filename without .md)
+      const title = notePath.split('/').pop().replace(/\.md$/, '')
+      notePreviewTitle.textContent = title
+
+      // Render Markdown to HTML
+      notePreviewContent.innerHTML = marked.parse(data.content)
+    } catch (err) {
+      console.error('Failed to preview note:', err)
+    }
   }
 
   // ── New note dialog ──────────────────────────────────────────
@@ -167,12 +206,12 @@
         return
       }
 
-      // Close dialog and reload notes list
+      // Close dialog and redirect to editor
       newNoteDialog.close()
-      await loadNotes()
 
-      // Auto-select the new note
-      loadNote(data.path)
+      // Build the full path for editor
+      const notePath = data.path.endsWith('.md') ? data.path : data.path + '.md'
+      window.location.href = `/editor?path=${encodeURIComponent(notePath)}&repo_id=${currentRepo}`
     } catch (err) {
       console.error('Failed to create note:', err)
       dialogError.textContent = '网络错误，请重试'
