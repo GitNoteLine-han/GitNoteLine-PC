@@ -120,30 +120,11 @@
     }
   }
 
-  // ── Load note content ────────────────────────────────────────
+  // ── Load note content (redirect to editor) ───────────────────
 
   async function loadNote(notePath) {
-    try {
-      // Update active state in list
-      document.querySelectorAll('.note-item').forEach(item => {
-        item.classList.toggle('active', item.dataset.path === notePath)
-      })
-
-      const res = await fetch(`/api/notes/${encodeURIComponent(notePath)}?repo_id=${currentRepo}`)
-      const data = await res.json()
-
-      if (!data.ok) {
-        console.error('Failed to load note:', data.error)
-        return
-      }
-
-      currentNote = notePath
-      notePlaceholder.style.display = 'none'
-      noteContent.style.display = 'block'
-      noteText.textContent = data.content
-    } catch (err) {
-      console.error('Failed to load note:', err)
-    }
+    // Redirect to editor page
+    window.location.href = `/editor?path=${encodeURIComponent(notePath)}&repo_id=${currentRepo}`
   }
 
   // ── New note dialog ──────────────────────────────────────────

@@ -58,6 +58,12 @@ def index():
     return current_app.send_static_file("main.html")
 
 
+@main_bp.route("/editor")
+def editor():
+    """Editor page for editing notes."""
+    return current_app.send_static_file("editor.html")
+
+
 @main_bp.route("/init/1")
 def init_page():
     db_path = current_app.config.get("DB_PATH", "")
@@ -486,6 +492,56 @@ def api_notes_get(note_path):
         return jsonify({"ok": True, "content": content, "path": note_path})
     except Exception as e:
         return jsonify({"ok": False, "error": f"读取失败: {str(e)}"}), 500
+
+
+@main_bp.route("/api/notes/<path:note_path>", methods=["PUT"])
+def api_notes_update(note_path):
+    """Update note content."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"ok": False, "error": "请求体为空"}), 400
+
+    content = data.get("content", "")
+    repo_id = data.get("repo_id")
+
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    # Get the specified repository or the first one
+    if repo_id:
+        repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    else:
+        repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+    conn.close()
+
+    if not repo:
+        return jsonify({"ok": False, "error": "未配置仓库"}), 404
+
+    repo_path = Path(repo["path"])
+
+    # Add .md extension if not present
+    if not note_path.endswith('.md'):
+        note_path = note_path + '.md'
+
+    note_file = repo_path / note_path
+
+    # Security check: ensure the file is within the repo
+    try:
+        note_file.resolve().relative_to(repo_path.resolve())
+    except ValueError:
+        return jsonify({"ok": False, "error": "无效的路径"}), 400
+
+    if not note_file.exists():
+        return jsonify({"ok": False, "error": "笔记不存在"}), 404
+
+    try:
+        note_file.write_text(content, encoding='utf-8')
+        return jsonify({"ok": True, "path": note_path})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"保存失败: {str(e)}"}), 500
 
 
 @main_bp.route("/api/notes", methods=["POST"])

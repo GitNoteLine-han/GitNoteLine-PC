@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>编辑笔记 - GitNoteLine</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Editor selection dialog */
+    .editor-selection-dialog {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .editor-selection-content {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      max-width: 600px;
+      width: 90%;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .editor-selection-content h2 {
+      margin: 0 0 8px 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .editor-selection-content p {
+      margin: 0 0 24px 0;
+      color: var(--gray-600);
+      font-size: 0.95rem;
+    }
+
+    .editor-options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .editor-option {
+      border: 2px solid var(--gray-200);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .editor-option:hover {
+      border-color: var(--blue-500);
+      background: var(--gray-50);
+    }
+
+    .editor-option.recommended {
+      border-color: var(--blue-500);
+      background: var(--blue-50);
+    }
+
+    .editor-option-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .editor-option-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+
+    .editor-option-badge {
+      background: var(--blue-500);
+      color: var(--white);
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    .editor-option-desc {
+      color: var(--gray-600);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    /* Editor container */
+    .editor-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background: var(--white);
+    }
+
+    .editor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--gray-200);
+      background: var(--gray-50);
+    }
+
+    .editor-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .editor-mode-toggle {
+      display: flex;
+      gap: 4px;
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      padding: 4px;
+    }
+
+    .mode-btn {
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--gray-600);
+      transition: all 0.2s ease;
+    }
+
+    .mode-btn.active {
+      background: var(--blue-500);
+      color: var(--white);
+    }
+
+    .mode-btn:hover:not(.active) {
+      background: var(--gray-100);
+    }
+
+    .editor-main {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #monaco-container {
+      width: 100%;
+      height: 100%;
+    }
+
+    #tiptap-container {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    .tiptap-editor {
+      max-width: 800px;
+      margin: 0 auto;
+      min-height: 100%;
+      outline: none;
+    }
+
+    .tiptap-editor h1 { font-size: 2rem; margin: 1rem 0; }
+    .tiptap-editor h2 { font-size: 1.5rem; margin: 0.8rem 0; }
+    .tiptap-editor h3 { font-size: 1.25rem; margin: 0.6rem 0; }
+    .tiptap-editor p { margin: 0.5rem 0; line-height: 1.6; }
+    .tiptap-editor code {
+      background: var(--gray-100);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    .tiptap-editor pre {
+      background: var(--gray-900);
+      color: var(--gray-100);
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+    }
+    .tiptap-editor ul, .tiptap-editor ol {
+      margin: 0.5rem 0;
+      padding-left: 2rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .btn-save {
+      padding: 8px 16px;
+      background: var(--blue-500);
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .btn-save:hover {
+      background: var(--blue-600);
+    }
+
+    .btn-back {
+      padding: 8px 16px;
+      background: var(--white);
+      color: var(--gray-700);
+      border: 1px solid var(--gray-300);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .btn-back:hover {
+      background: var(--gray-50);
+    }
+  </style>
+</head>
+<body>
+  <!-- Editor selection dialog (shown on first time) -->
+  <div id="editor-selection-dialog" class="editor-selection-dialog hidden">
+    <div class="editor-selection-content">
+      <h2>选择编辑器模式</h2>
+      <p>选择你偏好的笔记编辑方式，稍后可以在编辑器中切换</p>
+      
+      <div class="editor-options">
+        <div class="editor-option recommended" data-mode="tiptap">
+          <div class="editor-option-header">
+            <span class="editor-option-title">可视化编辑</span>
+            <span class="editor-option-badge">推荐</span>
+          </div>
+          <div class="editor-option-desc">
+            所见即所得的编辑体验，适合日常笔记记录。支持格式化、列表、代码块等，无需学习 Markdown 语法。
+          </div>
+        </div>
+        
+        <div class="editor-option" data-mode="monaco">
+          <div class="editor-option-header">
+            <span class="editor-option-title">Markdown 源码</span>
+          </div>
+          <div class="editor-option-desc">
+            专业的代码编辑器，适合资深 Markdown 用户。直接编辑 Markdown 源码，支持语法高亮和智能提示。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editor container -->
+  <div class="editor-container">
+    <div class="editor-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button class="btn-back" onclick="window.history.back()">← 返回</button>
+        <span class="editor-title" id="note-title">加载中...</span>
+      </div>
+      
+      <div class="editor-actions">
+        <div class="editor-mode-toggle">
+          <button class="mode-btn" data-mode="tiptap">可视化</button>
+          <button class="mode-btn" data-mode="monaco">源码</button>
+        </div>
+        <button class="btn-save" id="btn-save">保存</button>
+      </div>
+    </div>
+    
+    <div class="editor-main">
+      <div id="monaco-container" class="hidden"></div>
+      <div id="tiptap-container">
+        <div id="tiptap-editor" class="tiptap-editor" contenteditable="true"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Monaco Editor from local -->
+  <script src="/lib/monaco-editor/min/vs/loader.js"></script>
+  
+  <!-- Load marked.js for Markdown parsing -->
+  <script src="/lib/marked.min.js"></script>
+  
+  <!-- Load turndown for HTML to Markdown conversion -->
+  <script src="/lib/turndown.js"></script>
+  
+  <script src="/js/editor.js"></script>
+</body>
+</html>

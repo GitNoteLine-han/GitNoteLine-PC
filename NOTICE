@@ -10,3 +10,26 @@ Copyright (c) 2026 Hanguang
 License: CC BY 4.0 - https://fontawesome.com/license/free
 Source: https://fontawesome.com
 Copyright: 2026 Fonticons, Inc.
+
+### Monaco Editor
+License: MIT
+Source: https://github.com/microsoft/monaco-editor
+Version: 0.45.0
+Copyright: Microsoft Corporation
+
+### marked.js
+License: MIT
+Source: https://github.com/markedjs/marked
+Version: 11.1.0
+Copyright: markedjs contributors
+
+### turndown
+License: MIT
+Source: https://github.com/mixmark-io/turndown
+Version: 7.1.2
+Copyright: mixmark-io
+
+### TipTap (planned)
+License: MIT
+Source: https://github.com/ueberdosis/tiptap
+Note: To be integrated for WYSIWYG editing mode
