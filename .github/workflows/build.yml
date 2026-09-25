@@ -62,7 +62,7 @@ jobs:
 
       - name: Build AppImage
         run: |
-          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.app -O appimagetool
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
           mkdir -p AppDir/usr/bin
           cp dist/GitNoteLine-PC AppDir/usr/bin/
@@ -144,7 +144,7 @@ jobs:
 
       - name: Build AppImage
         run: |
-          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.app -O appimagetool
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage -O appimagetool
           chmod +x appimagetool
           mkdir -p AppDir/usr/bin
           cp dist/GitNoteLine-PC AppDir/usr/bin/
