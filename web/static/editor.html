@@ -286,6 +286,38 @@
       box-shadow: var(--shadow-sm);
     }
 
+    .btn-delete-image-panel {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+
+    .btn-delete-image-panel img {
+      width: 14px;
+      height: 14px;
+      filter: brightness(0) saturate(100%) invert(45%) sepia(70%) saturate(3000%) hue-rotate(340deg) brightness(100%) contrast(90%);
+    }
+
+    .image-item:hover .btn-delete-image-panel {
+      display: flex;
+    }
+
+    .btn-delete-image-panel:hover {
+      background: var(--red-100);
+    }
+
+    .btn-delete-image-panel:hover img {
+      filter: brightness(0) saturate(100%) invert(35%) sepia(95%) saturate(2500%) hue-rotate(340deg) brightness(90%) contrast(100%);
+    }
+
     .image-item:active {
       cursor: grabbing;
     }
@@ -551,6 +583,18 @@
       </div>
     </div>
   </div>
+
+  <!-- Delete image confirmation dialog -->
+  <dialog id="delete-image-dialog" class="warning-modal">
+    <div class="warning-content">
+      <h3 class="warning-title">确认删除</h3>
+      <p class="warning-text" id="delete-image-text"></p>
+      <div class="warning-actions">
+        <button type="button" class="btn-warning-secondary" id="btn-delete-image-cancel">取消</button>
+        <button type="button" class="btn-warning-primary" id="btn-delete-image-confirm">删除</button>
+      </div>
+    </div>
+  </dialog>
 
   <!-- Load Quill.js for WYSIWYG editing -->
   <link href="/lib/quill.snow.css" rel="stylesheet">

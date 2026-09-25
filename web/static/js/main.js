@@ -21,8 +21,14 @@
   const dialogError = document.getElementById('dialog-error')
   const btnSync = document.getElementById('btn-sync')
 
+  const deleteDialog = document.getElementById('delete-dialog')
+  const deleteDialogText = document.getElementById('delete-dialog-text')
+  const btnCancelDelete = document.getElementById('btn-delete-cancel')
+  const btnConfirmDelete = document.getElementById('btn-delete-confirm')
+
   let currentRepo = null
   let currentNotePath = null
+  let pendingDelete = null  // { type: 'note' | 'image', path: string, name: string }
 
   // ── Initialize ───────────────────────────────────────────────
 
@@ -43,6 +49,12 @@
         window.location.href = `/editor?path=${encodeURIComponent(currentNotePath)}&repo_id=${currentRepo}`
       }
     })
+
+    // Sync button → full sync
+    btnSync.addEventListener('click', () => {
+      if (btnSync.classList.contains('syncing')) return
+      syncFull()
+    })
   }
 
   // ── Sync operations ──────────────────────────────────────────
@@ -59,6 +71,26 @@
       if (data.ok) {
         setSyncState('success')
         // Reload notes after pull
+        await loadNotes()
+      } else {
+        setSyncState('error', data.error)
+      }
+    } catch (err) {
+      setSyncState('error', '网络错误')
+    }
+  }
+
+  async function syncFull() {
+    if (!currentRepo) return
+
+    setSyncState('syncing')
+
+    try {
+      const res = await fetch(`/api/repo/${currentRepo}/sync`, { method: 'POST' })
+      const data = await res.json()
+
+      if (data.ok) {
+        setSyncState('success')
         await loadNotes()
       } else {
         setSyncState('error', data.error)
@@ -178,8 +210,22 @@
           ? `<span class="note-dir">${note.name.split('/').slice(0, -1).join('/')}/</span>${note.name.split('/').pop()}`
           : note.name
 
-        item.innerHTML = `<span class="note-name">${displayName}</span>`
-        item.addEventListener('click', () => previewNote(note.path))
+        item.innerHTML = `
+          <span class="note-name">${displayName}</span>
+          <button class="btn-delete-note" title="删除笔记">
+            <img src="/icons/trash-can-solid-full.svg" alt="删除" width="14" height="14">
+          </button>
+        `
+
+        // Click on item → preview
+        item.querySelector('.note-name').addEventListener('click', () => previewNote(note.path))
+
+        // Click on delete button → confirm dialog
+        item.querySelector('.btn-delete-note').addEventListener('click', (e) => {
+          e.stopPropagation()
+          showDeleteDialog('note', note.path, note.name)
+        })
+
         notesList.appendChild(item)
       })
     } catch (err) {
@@ -223,6 +269,32 @@
 
       // Render Markdown to HTML
       notePreviewContent.innerHTML = marked.parse(displayContent)
+
+      // Wrap images with delete button
+      notePreviewContent.querySelectorAll('img').forEach(img => {
+        const wrapper = document.createElement('span')
+        wrapper.className = 'preview-image-wrapper'
+        img.parentNode.insertBefore(wrapper, img)
+        wrapper.appendChild(img)
+
+        const deleteBtn = document.createElement('button')
+        deleteBtn.className = 'btn-delete-image'
+        deleteBtn.title = '删除图片'
+        deleteBtn.innerHTML = '<img src="/icons/trash-can-solid-full.svg" alt="删除" width="14" height="14">'
+        wrapper.appendChild(deleteBtn)
+
+        // Extract image filename from src (e.g. /repo/1/img/xxx.png → img/xxx.png)
+        const src = img.getAttribute('src') || ''
+        const imgPathMatch = src.match(/\/repo\/\d+\/(img\/.+)$/)
+        if (imgPathMatch) {
+          const imgPath = imgPathMatch[1]
+          const imgName = imgPath.split('/').pop()
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation()
+            showDeleteDialog('image', imgPath, imgName)
+          })
+        }
+      })
     } catch (err) {
       console.error('Failed to preview note:', err)
     }
@@ -283,6 +355,73 @@
   // Close dialog on Escape
   newNoteDialog.addEventListener('cancel', () => {
     dialogError.textContent = ''
+  })
+
+  // ── Delete operations ────────────────────────────────────────
+
+  function showDeleteDialog(type, path, name) {
+    pendingDelete = { type, path, name }
+
+    if (type === 'note') {
+      deleteDialogText.textContent = `确定要删除笔记「${name}」吗？撤销该操作将需要回滚。`
+    } else {
+      deleteDialogText.textContent = `确定要删除图片「${name}」吗？删除后所有引用都会失效。`
+    }
+
+    deleteDialog.showModal()
+  }
+
+  btnCancelDelete.addEventListener('click', () => {
+    deleteDialog.close()
+    pendingDelete = null
+  })
+
+  deleteDialog.addEventListener('cancel', () => {
+    pendingDelete = null
+  })
+
+  btnConfirmDelete.addEventListener('click', async () => {
+    if (!pendingDelete) return
+
+    const { type, path, name } = pendingDelete
+    deleteDialog.close()
+
+    try {
+      let url
+      if (type === 'note') {
+        url = `/api/notes/${encodeURIComponent(path)}?repo_id=${currentRepo}`
+      } else {
+        url = `/api/repo/${currentRepo}/images/${encodeURIComponent(path)}`
+      }
+
+      const res = await fetch(url, { method: 'DELETE' })
+      const data = await res.json()
+
+      if (!data.ok) {
+        alert(data.error || '删除失败')
+        return
+      }
+
+      if (type === 'note') {
+        // If deleted the currently previewed note, reset preview
+        if (currentNotePath === path) {
+          currentNotePath = null
+          notePreview.style.display = 'none'
+          notePlaceholder.style.display = 'flex'
+        }
+        await loadNotes()
+      } else {
+        // Refresh preview to remove deleted image
+        if (currentNotePath) {
+          previewNote(currentNotePath)
+        }
+      }
+    } catch (err) {
+      console.error('Delete failed:', err)
+      alert('网络错误，请重试')
+    }
+
+    pendingDelete = null
   })
 
   // ── Start ────────────────────────────────────────────────────

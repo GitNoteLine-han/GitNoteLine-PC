@@ -60,6 +60,18 @@
     </main>
   </div>
 
+  <!-- Delete confirmation dialog -->
+  <dialog id="delete-dialog" class="warning-modal">
+    <div class="warning-content">
+      <h3 class="warning-title" id="delete-dialog-title">确认删除</h3>
+      <p class="warning-text" id="delete-dialog-text"></p>
+      <div class="warning-actions">
+        <button type="button" class="btn-warning-secondary" id="btn-delete-cancel">取消</button>
+        <button type="button" class="btn-warning-primary" id="btn-delete-confirm">删除</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- New note dialog -->
   <dialog id="new-note-dialog" class="dialog">
     <form id="new-note-form" class="dialog-form">

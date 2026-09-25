@@ -31,6 +31,13 @@
   const existingImagesList = document.getElementById('existing-images')
   const btnUploadImage = document.getElementById('btn-upload-image')
 
+  // Delete image dialog
+  const deleteImageDialog = document.getElementById('delete-image-dialog')
+  const deleteImageText = document.getElementById('delete-image-text')
+  const btnCancelDeleteImage = document.getElementById('btn-delete-image-cancel')
+  const btnConfirmDeleteImage = document.getElementById('btn-delete-image-confirm')
+  let pendingImageDelete = null
+
   // Initialize
   async function init() {
     // Get note path and repo_id from URL
@@ -612,8 +619,21 @@
     info.appendChild(name)
     info.appendChild(path)
 
+    // Delete button
+    const deleteBtn = document.createElement('button')
+    deleteBtn.className = 'btn-delete-image-panel'
+    deleteBtn.title = '删除图片'
+    deleteBtn.innerHTML = '<img src="/icons/trash-can-solid-full.svg" alt="删除" width="14" height="14">'
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation()
+      pendingImageDelete = { path: imagePath, name: imageName }
+      deleteImageText.textContent = `确定要删除图片「${imageName}」吗？删除后所有引用都会失效。`
+      deleteImageDialog.showModal()
+    })
+
     item.appendChild(thumbnail)
     item.appendChild(info)
+    item.appendChild(deleteBtn)
 
     // Drag start event
     item.addEventListener('dragstart', (e) => {
@@ -683,6 +703,48 @@
     })
 
     input.click()
+  }
+
+  // Delete image dialog handlers
+  if (btnCancelDeleteImage) {
+    btnCancelDeleteImage.addEventListener('click', () => {
+      deleteImageDialog.close()
+      pendingImageDelete = null
+    })
+  }
+
+  if (deleteImageDialog) {
+    deleteImageDialog.addEventListener('cancel', () => {
+      pendingImageDelete = null
+    })
+  }
+
+  if (btnConfirmDeleteImage) {
+    btnConfirmDeleteImage.addEventListener('click', async () => {
+      if (!pendingImageDelete) return
+
+      const { path, name } = pendingImageDelete
+      deleteImageDialog.close()
+
+      try {
+        const res = await fetch(`/api/repo/${currentRepoId}/images/${encodeURIComponent(path)}`, {
+          method: 'DELETE'
+        })
+        const data = await res.json()
+
+        if (!data.ok) {
+          alert(data.error || '删除失败')
+          return
+        }
+
+        loadExistingImages(allImagesLoaded)
+      } catch (err) {
+        console.error('Delete image failed:', err)
+        alert('网络错误，请重试')
+      }
+
+      pendingImageDelete = null
+    })
   }
 
   // Start

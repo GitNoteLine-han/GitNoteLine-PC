@@ -722,6 +722,10 @@ body {
   cursor: pointer;
   transition: background 0.15s ease;
   border-left: 3px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .note-item:hover {
@@ -737,6 +741,40 @@ body {
   font-size: 0.9rem;
   color: var(--gray-800);
   word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-delete-note {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-delete-note img {
+  width: 14px;
+  height: 14px;
+  filter: brightness(0) saturate(100%) invert(45%) sepia(70%) saturate(3000%) hue-rotate(340deg) brightness(100%) contrast(90%);
+}
+
+.note-item:hover .btn-delete-note {
+  display: flex;
+}
+
+.btn-delete-note:hover {
+  background: var(--red-100);
+}
+
+.btn-delete-note:hover img {
+  filter: brightness(0) saturate(100%) invert(35%) sepia(95%) saturate(2500%) hue-rotate(340deg) brightness(90%) contrast(100%);
 }
 
 .note-dir {
@@ -1008,6 +1046,53 @@ body {
   max-width: 100%;
   border-radius: var(--radius-sm);
   margin: 1rem 0;
+}
+
+.preview-image-wrapper {
+  position: relative;
+  display: inline-block;
+  margin: 1rem 0;
+}
+
+.preview-image-wrapper img {
+  margin: 0;
+}
+
+.btn-delete-image {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.btn-delete-image img {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  filter: brightness(0) saturate(100%) invert(45%) sepia(70%) saturate(3000%) hue-rotate(340deg) brightness(100%) contrast(90%);
+}
+
+.preview-image-wrapper:hover .btn-delete-image {
+  display: flex;
+}
+
+.btn-delete-image:hover {
+  background: var(--red-100);
+}
+
+.btn-delete-image:hover img {
+  filter: brightness(0) saturate(100%) invert(35%) sepia(95%) saturate(2500%) hue-rotate(340deg) brightness(90%) contrast(100%);
 }
 
 .note-preview-content hr {

@@ -1218,6 +1218,167 @@ def sync_push(db_path: str, repo_id: int) -> dict:
         )
 
 
+def sync_full(db_path: str, repo_id: int) -> dict:
+    """Smart sync: push local changes, pull remote changes.
+
+    Logic:
+    - If there are uncommitted changes → commit + push
+    - If push fails (conflict) → pull + push again
+    - If no local changes → just pull
+    """
+    repo_info = _get_repo_with_credential(db_path, repo_id)
+
+    if not repo_info:
+        return {"ok": False, "error": "仓库不存在"}
+
+    if not repo_info["remote_url"]:
+        return {"ok": False, "error": "仓库没有配置远程地址"}
+
+    if not repo_info["token"]:
+        return {"ok": False, "error": "仓库没有配置凭证"}
+
+    repo_path = repo_info["path"]
+    git_env = os.environ.copy()
+    git_env["GIT_TERMINAL_PROMPT"] = "0"
+
+    try:
+        # Configure git user
+        if repo_info["git_name"]:
+            subprocess.run(
+                ["git", "config", "user.name", repo_info["git_name"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+        if repo_info["git_email"]:
+            subprocess.run(
+                ["git", "config", "user.email", repo_info["git_email"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+
+        # Check for local changes
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+        has_local_changes = bool(status_result.stdout.strip())
+
+        if has_local_changes:
+            # Commit local changes
+            _write_gitnoteline_yaml(repo_path)
+            subprocess.run(
+                ["git", "add", "-A"],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "Sync: update notes"],
+                cwd=repo_path, capture_output=True, text=True, timeout=10,
+            )
+
+            # Build authenticated URL
+            auth_url = _build_auth_url(repo_info["remote_url"], repo_info["token"])
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", auth_url],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+
+            # Get current branch
+            branch_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path, capture_output=True, text=True, timeout=5,
+            )
+            if branch_result.returncode != 0:
+                return {"ok": False, "error": "无法获取当前分支"}
+            current_branch = branch_result.stdout.strip()
+
+            # Try push
+            push_result = subprocess.run(
+                ["git", "push", "origin", current_branch],
+                cwd=repo_path, capture_output=True, text=True, timeout=30,
+                env=git_env,
+            )
+
+            if push_result.returncode != 0:
+                # Push failed — pull first, then push again
+                pull_result = subprocess.run(
+                    ["git", "pull", "origin", current_branch, "--allow-unrelated-histories", "--no-edit"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=30,
+                    env=git_env,
+                )
+
+                if pull_result.returncode != 0:
+                    if "CONFLICT" in pull_result.stdout or "CONFLICT" in pull_result.stderr:
+                        subprocess.run(
+                            ["git", "add", "-A"],
+                            cwd=repo_path, capture_output=True, timeout=5,
+                        )
+                        subprocess.run(
+                            ["git", "commit", "-m", "Sync: auto-merge conflict"],
+                            cwd=repo_path, capture_output=True, text=True, timeout=10,
+                        )
+                    else:
+                        error_msg = _classify_git_error(pull_result.stderr)
+                        return {"ok": False, "error": f"拉取失败: {error_msg}"}
+
+                # Push again after pull
+                push_result2 = subprocess.run(
+                    ["git", "push", "origin", current_branch],
+                    cwd=repo_path, capture_output=True, text=True, timeout=30,
+                    env=git_env,
+                )
+                if push_result2.returncode != 0:
+                    error_msg = _classify_git_error(push_result2.stderr)
+                    return {"ok": False, "error": f"推送失败: {error_msg}"}
+
+            return {"ok": True}
+
+        else:
+            # No local changes — just pull
+            auth_url = _build_auth_url(repo_info["remote_url"], repo_info["token"])
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", auth_url],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+
+            branch_result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=repo_path, capture_output=True, text=True, timeout=5,
+            )
+            if branch_result.returncode != 0:
+                return {"ok": False, "error": "无法获取当前分支"}
+            current_branch = branch_result.stdout.strip()
+
+            pull_result = subprocess.run(
+                ["git", "pull", "origin", current_branch, "--allow-unrelated-histories", "--no-edit"],
+                cwd=repo_path, capture_output=True, text=True, timeout=30,
+                env=git_env,
+            )
+
+            if pull_result.returncode != 0:
+                if "CONFLICT" in pull_result.stdout or "CONFLICT" in pull_result.stderr:
+                    subprocess.run(
+                        ["git", "add", "-A"],
+                        cwd=repo_path, capture_output=True, timeout=5,
+                    )
+                    subprocess.run(
+                        ["git", "commit", "-m", "Sync: auto-merge conflict"],
+                        cwd=repo_path, capture_output=True, text=True, timeout=10,
+                    )
+                else:
+                    error_msg = _classify_git_error(pull_result.stderr)
+                    return {"ok": False, "error": error_msg}
+
+            return {"ok": True}
+
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "操作超时"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", repo_info["remote_url"]],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+
 def get_sync_status(db_path: str, repo_id: int) -> dict:
     """Get sync status for a repository.
 

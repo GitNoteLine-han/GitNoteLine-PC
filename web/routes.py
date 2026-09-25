@@ -742,6 +742,80 @@ def serve_repo_file(repo_id, filename):
     return send_from_directory(str(repo_path), filename)
 
 
+@main_bp.route("/api/notes/<path:note_path>", methods=["DELETE"])
+def api_notes_delete(note_path):
+    """Delete a note file."""
+    repo_id = request.args.get("repo_id", type=int)
+
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    if repo_id:
+        repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    else:
+        repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+    conn.close()
+
+    if not repo:
+        return jsonify({"ok": False, "error": "未配置仓库"}), 404
+
+    repo_path = Path(repo["path"])
+
+    if not note_path.endswith('.md'):
+        note_path = note_path + '.md'
+
+    note_file = repo_path / note_path
+
+    try:
+        note_file.resolve().relative_to(repo_path.resolve())
+    except ValueError:
+        return jsonify({"ok": False, "error": "无效的路径"}), 400
+
+    if not note_file.exists():
+        return jsonify({"ok": False, "error": "笔记不存在"}), 404
+
+    try:
+        note_file.unlink()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"删除失败: {str(e)}"}), 500
+
+
+@main_bp.route("/api/repo/<int:repo_id>/images/<path:filename>", methods=["DELETE"])
+def api_repo_images_delete(repo_id, filename):
+    """Delete an image from the repository's img/ directory."""
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    conn.close()
+
+    if not repo:
+        return jsonify({"ok": False, "error": "仓库不存在"}), 404
+
+    repo_path = Path(repo["path"])
+    img_file = (repo_path / filename).resolve()
+
+    # Security: ensure path is within repo
+    if not str(img_file).startswith(str(repo_path.resolve())):
+        return jsonify({"ok": False, "error": "无效的路径"}), 400
+
+    if not img_file.exists() or not img_file.is_file():
+        return jsonify({"ok": False, "error": "图片不存在"}), 404
+
+    try:
+        img_file.unlink()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"删除失败: {str(e)}"}), 500
+
+
 @main_bp.route("/api/notes", methods=["POST"])
 def api_notes_create():
     """Create a new note."""
@@ -830,6 +904,20 @@ def api_repo_push(repo_id):
     from core.services import sync_push
 
     result = sync_push(db_path, repo_id)
+
+    if not result.get("ok"):
+        return jsonify(result), 400
+
+    return jsonify(result)
+
+
+@main_bp.route("/api/repo/<int:repo_id>/sync", methods=["POST"])
+def api_repo_sync(repo_id):
+    """Smart sync: push local changes or pull remote changes."""
+    db_path = current_app.config.get("DB_PATH", "")
+    from core.services import sync_full
+
+    result = sync_full(db_path, repo_id)
 
     if not result.get("ok"):
         return jsonify(result), 400
