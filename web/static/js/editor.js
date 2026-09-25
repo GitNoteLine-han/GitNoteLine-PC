@@ -14,13 +14,17 @@
 
   // DOM elements
   const selectionDialog = document.getElementById('editor-selection-dialog')
+  const monacoMode = document.getElementById('monaco-mode')
+  const tiptapMode = document.getElementById('tiptap-mode')
   const monacoContainer = document.getElementById('monaco-container')
   const tiptapContainer = document.getElementById('tiptap-container')
   const tiptapEditor = document.getElementById('tiptap-editor')
+  const previewContent = document.getElementById('preview-content')
   const noteTitle = document.getElementById('note-title')
   const btnSave = document.getElementById('btn-save')
   const modeButtons = document.querySelectorAll('.mode-btn')
   const editorOptions = document.querySelectorAll('.editor-option')
+  const toolbarButtons = document.querySelectorAll('.toolbar-btn')
 
   // Initialize
   async function init() {
@@ -128,8 +132,8 @@
 
   // Start Monaco Editor
   function startMonaco() {
-    tiptapContainer.classList.add('hidden')
-    monacoContainer.classList.remove('hidden')
+    tiptapMode.classList.add('hidden')
+    monacoMode.classList.remove('hidden')
 
     if (!monacoEditor) {
       // Initialize Monaco with local path
@@ -153,22 +157,85 @@
 
         monacoEditor.onDidChangeModelContent(() => {
           isDirty = true
+          updatePreview()
         })
+
+        // Initial preview
+        updatePreview()
       })
     } else {
       // Update content
       monacoEditor.setValue(noteContent)
+      updatePreview()
+    }
+  }
+
+  // Update preview pane
+  function updatePreview() {
+    if (monacoEditor && previewContent) {
+      const markdown = monacoEditor.getValue()
+      previewContent.innerHTML = marked.parse(markdown)
     }
   }
 
   // Start TipTap Editor
   function startTipTap() {
-    monacoContainer.classList.add('hidden')
-    tiptapContainer.classList.remove('hidden')
+    monacoMode.classList.add('hidden')
+    tiptapMode.classList.remove('hidden')
 
     // Convert Markdown to HTML
     const htmlContent = marked.parse(noteContent)
     tiptapEditor.innerHTML = htmlContent
+
+    // Setup toolbar
+    setupToolbar()
+  }
+
+  // Setup toolbar buttons
+  function setupToolbar() {
+    toolbarButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const command = btn.dataset.command
+        executeCommand(command)
+      })
+    })
+  }
+
+  // Execute formatting command
+  function executeCommand(command) {
+    switch (command) {
+      case 'bold':
+        document.execCommand('bold', false, null)
+        break
+      case 'italic':
+        document.execCommand('italic', false, null)
+        break
+      case 'strike':
+        document.execCommand('strikeThrough', false, null)
+        break
+      case 'h1':
+        document.execCommand('formatBlock', false, 'h1')
+        break
+      case 'h2':
+        document.execCommand('formatBlock', false, 'h2')
+        break
+      case 'h3':
+        document.execCommand('formatBlock', false, 'h3')
+        break
+      case 'ul':
+        document.execCommand('insertUnorderedList', false, null)
+        break
+      case 'ol':
+        document.execCommand('insertOrderedList', false, null)
+        break
+      case 'code':
+        document.execCommand('insertHTML', false, '<code>代码</code>')
+        break
+      case 'codeBlock':
+        document.execCommand('insertHTML', false, '<pre><code>代码块</code></pre>')
+        break
+    }
+    isDirty = true
   }
 
   // Switch between modes

@@ -154,6 +154,18 @@
       flex: 1;
       overflow: hidden;
       position: relative;
+      display: flex;
+    }
+
+    .editor-pane {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .editor-pane.split {
+      flex: 0 0 50%;
+      border-right: 1px solid var(--gray-200);
     }
 
     #monaco-container {
@@ -161,11 +173,82 @@
       height: 100%;
     }
 
-    #tiptap-container {
-      width: 100%;
-      height: 100%;
+    .preview-pane {
+      flex: 0 0 50%;
       overflow-y: auto;
       padding: 32px;
+      background: var(--gray-50);
+    }
+
+    .preview-content {
+      max-width: 800px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .preview-content h1 { font-size: 2rem; margin: 1rem 0; }
+    .preview-content h2 { font-size: 1.5rem; margin: 0.8rem 0; }
+    .preview-content h3 { font-size: 1.25rem; margin: 0.6rem 0; }
+    .preview-content p { margin: 0.5rem 0; }
+    .preview-content code {
+      background: var(--gray-200);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    .preview-content pre {
+      background: var(--gray-900);
+      color: var(--gray-100);
+      padding: 16px;
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+    }
+    .preview-content ul, .preview-content ol {
+      margin: 0.5rem 0;
+      padding-left: 2rem;
+    }
+
+    #tiptap-container {
+      width: 100%;
+      height: calc(100% - 50px);
+      overflow-y: auto;
+      padding: 32px;
+    }
+
+    .tiptap-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 16px;
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .toolbar-btn {
+      padding: 6px 12px;
+      background: var(--white);
+      border: 1px solid var(--gray-200);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: var(--gray-700);
+      transition: all 0.15s ease;
+    }
+
+    .toolbar-btn:hover {
+      background: var(--gray-100);
+      border-color: var(--gray-300);
+    }
+
+    .toolbar-btn:active {
+      background: var(--gray-200);
+    }
+
+    .toolbar-separator {
+      width: 1px;
+      height: 20px;
+      background: var(--gray-200);
+      margin: 0 4px;
     }
 
     .tiptap-editor {
@@ -279,9 +362,36 @@
     </div>
     
     <div class="editor-main">
-      <div id="monaco-container" class="hidden"></div>
-      <div id="tiptap-container">
-        <div id="tiptap-editor" class="tiptap-editor" contenteditable="true"></div>
+      <!-- Monaco mode with split view -->
+      <div id="monaco-mode" class="hidden" style="display: flex; width: 100%; height: 100%;">
+        <div class="editor-pane split">
+          <div id="monaco-container"></div>
+        </div>
+        <div class="preview-pane">
+          <div class="preview-content" id="preview-content"></div>
+        </div>
+      </div>
+      
+      <!-- TipTap mode -->
+      <div id="tiptap-mode" class="hidden" style="width: 100%; height: 100%;">
+        <div id="tiptap-toolbar" class="tiptap-toolbar">
+          <button class="toolbar-btn" data-command="bold" title="粗体"><b>B</b></button>
+          <button class="toolbar-btn" data-command="italic" title="斜体"><i>I</i></button>
+          <button class="toolbar-btn" data-command="strike" title="删除线"><s>S</s></button>
+          <span class="toolbar-separator"></span>
+          <button class="toolbar-btn" data-command="h1" title="标题 1">H1</button>
+          <button class="toolbar-btn" data-command="h2" title="标题 2">H2</button>
+          <button class="toolbar-btn" data-command="h3" title="标题 3">H3</button>
+          <span class="toolbar-separator"></span>
+          <button class="toolbar-btn" data-command="ul" title="无序列表">• 列表</button>
+          <button class="toolbar-btn" data-command="ol" title="有序列表">1. 列表</button>
+          <span class="toolbar-separator"></span>
+          <button class="toolbar-btn" data-command="code" title="代码">&lt;/&gt;</button>
+          <button class="toolbar-btn" data-command="codeBlock" title="代码块">```</button>
+        </div>
+        <div id="tiptap-container">
+          <div id="tiptap-editor" class="tiptap-editor" contenteditable="true"></div>
+        </div>
       </div>
     </div>
   </div>
