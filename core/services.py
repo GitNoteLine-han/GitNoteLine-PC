@@ -398,12 +398,19 @@ def init_step2_1(
                     ["git", "commit", "-m", "Initialize GitNoteLine repository"],
                     cwd=repo_path, capture_output=True, text=True, timeout=10,
                 )
-                
+
                 # Commit might fail if nothing to commit (YAML already existed and unchanged)
                 # That's OK, continue with push
-                
+
+                # Get current branch name
+                branch_result = subprocess.run(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=5,
+                )
+                current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "main"
+
                 push_result = subprocess.run(
-                    ["git", "push", "origin", "main"],
+                    ["git", "push", "-u", "origin", current_branch],
                     cwd=repo_path, capture_output=True, text=True, timeout=30,
                     env=git_env,
                 )
