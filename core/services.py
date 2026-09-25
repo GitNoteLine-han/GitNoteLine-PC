@@ -1031,7 +1031,51 @@ def sync_pull(db_path: str, repo_id: int) -> dict:
 
         current_branch = branch_result.stdout.strip()
 
-        # Git pull
+        # Check for uncommitted local changes
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+
+        has_local_changes = bool(status_result.stdout.strip())
+
+        # Git fetch to check if remote has new changes
+        fetch_result = subprocess.run(
+            ["git", "fetch", "origin", current_branch],
+            cwd=repo_path, capture_output=True, text=True, timeout=30,
+            env=git_env,
+        )
+
+        if fetch_result.returncode != 0:
+            error_msg = _classify_git_error(fetch_result.stderr)
+            return {"ok": False, "error": error_msg}
+
+        # Check if remote has new commits
+        local_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        remote_head = subprocess.run(
+            ["git", "rev-parse", f"origin/{current_branch}"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+
+        if local_head == remote_head:
+            # Already up to date, nothing to pull
+            return {"ok": True}
+
+        # If there are local changes, don't overwrite — commit them first
+        if has_local_changes:
+            subprocess.run(
+                ["git", "add", "-A"],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+            subprocess.run(
+                ["git", "commit", "-m", "Auto-save before sync"],
+                cwd=repo_path, capture_output=True, text=True, timeout=10,
+            )
+
+        # Git pull (merge fetched changes)
         pull_result = subprocess.run(
             ["git", "pull", "origin", current_branch, "--allow-unrelated-histories", "--no-edit"],
             cwd=repo_path, capture_output=True, text=True, timeout=30,

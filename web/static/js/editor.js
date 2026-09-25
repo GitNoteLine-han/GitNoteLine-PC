@@ -70,6 +70,9 @@
   async function syncPull() {
     if (!currentRepoId) return
 
+    // Don't overwrite editor if user has unsaved changes
+    if (isDirty) return
+
     try {
       const res = await fetch(`/api/repo/${currentRepoId}/pull`, { method: 'POST' })
       const data = await res.json()
@@ -83,7 +86,7 @@
           updatePreview()
         } else if (currentMode === 'tiptap' && quillEditor) {
           const htmlContent = marked.parse(noteContent)
-          quillEditor.root.innerHTML = htmlContent
+          quillEditor.clipboard.dangerouslyPasteHTML(htmlContent)
         }
       } else {
         console.warn('Auto-pull failed:', data.error)
@@ -484,7 +487,9 @@
 
       noteContent = content
       isDirty = false
-      alert('保存成功！')
+
+      // Refresh preview after save
+      updatePreview()
 
       // Reload images if in Monaco mode
       if (currentMode === 'monaco') {
@@ -493,6 +498,8 @@
 
       // Auto-push after save
       syncPush()
+
+      alert('保存成功！')
     } catch (err) {
       alert('保存失败：' + err.message)
     }
