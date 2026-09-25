@@ -106,18 +106,89 @@ static/
   │   └─ 无 Git 配置 → 直接显示表单
   │       └─ 提交 → 写入 DB（identity_source=manual）→ /init/2
   │
-  └─ DB 存在 → 直接进入主页 /
+  ├─ DB 存在但无仓库 → /init/2（仓库设置选择页）
+  │   │
+  │   ├─ /init/2/1 — 创建在线仓库（推荐）
+  │   │   │
+  │   │   ├─ 填写远程 URL、本地路径、凭证信息
+  │   │   ├─ 自动从 URL 提取域名作为平台标签
+  │   │   ├─ 自动从 URL 提取仓库名，默认路径：~/.gitnoteline/repos/<仓库名>
+  │   │   ├─ GitHub + 通用密钥 → 红色警告（GitHub 不支持密码认证）
+  │   │   └─ 提交后验证流程：
+  │   │       ├─ git ls-remote 检测远程状态
+  │   │       ├─ 非空仓库 → git pull（同步已有内容）
+  │   │       ├─ 写入 .gitnoteline.yaml（设备注册表）
+  │   │       ├─ git add + commit + push（验证凭证）
+  │   │       └─ 失败时自动回滚（删除目录 + 数据库记录）
+  │   │
+  │   ├─ /init/2/2 — 同步已有云仓库（待实现）
+  │   ├─ /init/2/3 — 选择已有本地仓库（待实现）
+  │   └─ /init/2/4 — 创建本地仓库，暂不同步（待实现）
+  │
+  └─ DB 存在且有仓库 → 直接进入主页 /
 ```
 
 **/init/1 重定向规则：**
 - DB 不存在 → 显示初始化表单
 - DB 已存在 → 302 重定向到 /init/2
 
-### 6. 端口策略
+**/init/2/1 验证流程：**
+1. `git ls-remote` 检测远程仓库状态
+2. 空仓库：跳过 pull，直接写 YAML + push
+3. 非空仓库：pull → 写 YAML → push
+4. 失败时回滚：删除本地目录 + 数据库凭证/仓库记录
+5. 错误处理：
+   - 认证失败 → "认证失败，请检查凭证是否正确"
+   - 网络错误 → "网络错误，无法连接远程仓库"
+   - 使用 `GIT_TERMINAL_PROMPT=0` 禁用交互式密码提示
+
+### 6. 凭证加密存储
+
+**不使用 keyring，改用 Fernet 对称加密存储在数据库：**
+
+```python
+# core/credentials.py
+from cryptography.fernet import Fernet
+
+# 密钥派生：machine-id + username → PBKDF2 → Fernet key
+# 加密存储：encrypted_secret 字段存储在 credentials 表
+```
+
+**为什么不用 keyring：**
+- 容器化部署时可能没有 keyring daemon
+- 数据库加密更便携，备份/迁移只需复制 userdata.db
+- 密钥从 machine-id 派生，同一台机器自动解密
+
+**加密流程：**
+1. 获取 machine-id（Linux: `/etc/machine-id`）+ 用户名
+2. PBKDF2 派生 32 字节密钥（100000 次迭代）
+3. Fernet 加密凭证（AES-128-CBC + HMAC）
+4. 存储到 `credentials.encrypted_secret` 字段
+
+### 7. .gitnoteline.yaml 配置文件
+
+每个仓库根目录的 `.gitnoteline.yaml` 记录设备注册表：
+
+```yaml
+version: 1
+devices:
+  - name: G36113          # 设备名（hostname）
+    joined: 2026-09-25    # 首次加入时间
+    last_sync: 2026-09-25 # 最后同步时间
+```
+
+**设计原则：**
+- 信息最小化，适合公开仓库
+- 新设备加入时追加一条记录
+- 每次同步更新 `last_sync`
+- `version` 字段用于未来格式迁移
+
+### 8. 端口策略
 
 - 默认随机端口（`_find_free_port()`）
 - `--port` 指定固定端口
 - `--debug` 模式下通过环境变量 `GITNOTELINE_PORT` 保持 reloader 子进程端口一致
+- `--only-server` 模式：监听 `0.0.0.0:8080`，适合容器化/远程部署
 
 ---
 
@@ -128,13 +199,17 @@ static/
 | `/api/hello` | GET | 心跳/连接检测 | 永久保留，不删除 |
 | `/api/init/prefill` | GET | 获取身份预填数据 | 读 Git 全局配置 |
 | `/api/init/step1` | POST | 提交身份设置 | body: `{name, email, source}` |
+| `/api/init/step2/1/default-path` | GET | 获取默认本地路径 | query: `remote_url`，自动提取仓库名 |
+| `/api/init/step2/1` | POST | 创建在线仓库 | body: `{remote_url, local_path, credential_name, credential_type, credential_secret}` |
 
 ---
 
 ## 待实现 / 未来路线
 
 ### 近期
-- [ ] `/init/2` — 仓库路径设置（选择或创建 Git 仓库目录）
+- [ ] `/init/2/2` — 同步已有云仓库（clone 远程仓库到本地）
+- [ ] `/init/2/3` — 选择已有本地仓库（关联已存在的 Git 仓库）
+- [ ] `/init/2/4` — 创建本地仓库，暂不同步（纯本地模式）
 - [ ] 笔记 CRUD — 创建、编辑、删除笔记
 - [ ] Git 操作封装 — commit、push、pull、diff
 
@@ -142,9 +217,9 @@ static/
 - [ ] 本地 webview 窗口（可选）
 - [ ] 笔记编辑器 — Markdown 编辑 + 实时预览
 - [ ] 搜索功能 — 全文搜索笔记内容
+- [ ] 多设备同步 UI — 查看设备列表、同步状态
 
 ### 远期
-- [ ] 多仓库支持
 - [ ] 冲突处理 UI
 - [ ] 笔记标签/分类系统
 - [ ] 导出功能（PDF、HTML）
@@ -157,15 +232,24 @@ static/
 # 安装依赖（虚拟环境在 ../.env，不在项目目录内）
 ../.env/bin/pip install -r requirements.txt
 
-# 启动 Web 服务
+# 启动 Web 服务（本地开发）
 ../.env/bin/python -m web
 
 # 启动（指定端口）
 ../.env/bin/python -m web --port 8080
 
+# 服务器模式（容器化/远程部署）
+../.env/bin/python -m web --only-server
+
 # 调试模式（热重载 + Werkzeug debugger）
 ../.env/bin/python -m web --debug
 ```
+
+**依赖说明：**
+- `flask>=3.0` — Web 框架
+- `werkzeug>=3.0` — WSGI 工具库
+- `cryptography>=41.0` — 凭证加密（Fernet）
+- `pyyaml>=6.0` — YAML 配置文件读写
 
 ---
 
