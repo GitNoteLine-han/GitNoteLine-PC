@@ -1339,3 +1339,84 @@ body {
   font-size: 1.2rem;
   flex-shrink: 0;
 }
+
+/* Warning Modal */
+.warning-modal {
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 0;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+}
+
+.warning-modal::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.warning-content {
+  padding: 24px;
+}
+
+.warning-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0 0 16px;
+  text-align: center;
+}
+
+.warning-text {
+  font-size: 0.95rem;
+  color: var(--gray-700);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
+.warning-list {
+  margin: 0 0 16px;
+  padding-left: 24px;
+  color: var(--gray-700);
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.warning-list li {
+  margin: 4px 0;
+}
+
+.warning-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-warning-secondary,
+.btn-warning-primary {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-warning-secondary {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.btn-warning-secondary:hover {
+  background: var(--gray-200);
+}
+
+.btn-warning-primary {
+  background: var(--red-500);
+  color: white;
+}
+
+.btn-warning-primary:hover {
+  background: var(--red-600);
+}

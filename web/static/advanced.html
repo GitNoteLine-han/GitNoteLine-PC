@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高级选项 - GitNoteLine</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="setting-layout">
+  <!-- Warning Modal -->
+  <dialog class="warning-modal" id="warning-modal">
+    <div class="warning-content">
+      <h2 class="warning-title">⚠️ 高级选项</h2>
+      <p class="warning-text">
+        这些选项面向高级用户，用于调整应用的底层行为。
+      </p>
+      <p class="warning-text">
+        修改前请确保你了解每个选项的作用。错误的设置可能导致：
+      </p>
+      <ul class="warning-list">
+        <li>笔记同步失败</li>
+        <li>数据丢失</li>
+        <li>应用无法正常运行</li>
+      </ul>
+      <p class="warning-text">
+        如果你不确定，建议保持默认设置。
+      </p>
+      <div class="warning-actions">
+        <button class="btn-warning-secondary" id="btn-warning-back">返回</button>
+        <button class="btn-warning-primary" id="btn-warning-confirm">我了解风险，继续</button>
+      </div>
+    </div>
+  </dialog>
+
+  <header class="setting-header">
+    <a href="/setting" class="btn-back">← 返回设置</a>
+    <h1>高级选项</h1>
+  </header>
+
+  <main class="setting-content" id="advanced-content" style="opacity: 0;">
+    <!-- Sync Settings -->
+    <section class="setting-section">
+      <h2 class="setting-section-title">同步设置</h2>
+
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <span class="setting-item-label">同步模式</span>
+          <span class="setting-item-desc">自动模式：启动时拉取，保存时推送</span>
+        </div>
+        <div class="setting-item-control">
+          <select id="sync-mode" class="setting-select">
+            <option value="auto">自动同步</option>
+            <option value="manual">手动同步</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Conflict Settings -->
+    <section class="setting-section">
+      <h2 class="setting-section-title">冲突处理</h2>
+
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <span class="setting-item-label">检测到冲突时</span>
+          <span class="setting-item-desc" id="conflict-desc">尝试合并后重新推送</span>
+        </div>
+        <div class="setting-item-control">
+          <select id="conflict-mode" class="setting-select">
+            <option value="auto-merge">尝试合并后重新推送</option>
+            <option value="report-only">仅报错</option>
+          </select>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/js/advanced.js"></script>
+</body>
+</html>

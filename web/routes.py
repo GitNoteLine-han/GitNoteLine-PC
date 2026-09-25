@@ -70,6 +70,12 @@ def setting():
     return current_app.send_static_file("setting.html")
 
 
+@main_bp.route("/setting/advanced")
+def setting_advanced():
+    """Advanced settings page."""
+    return current_app.send_static_file("advanced.html")
+
+
 @main_bp.route("/init/1")
 def init_page():
     db_path = current_app.config.get("DB_PATH", "")
