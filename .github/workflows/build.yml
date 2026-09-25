@@ -74,9 +74,10 @@ jobs:
           chmod +x appimagetool
           mkdir -p AppDir/usr/bin
           cp dist/GitNoteLine-PC AppDir/usr/bin/
-          printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nCategories=Office;\n' > AppDir/gitnoteline.desktop
+          printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nIcon=gitnoteline\nCategories=Office;\n' > AppDir/gitnoteline.desktop
           cp AppDir/usr/bin/GitNoteLine-PC AppDir/AppRun
           chmod +x AppDir/AppRun
+          printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > AppDir/gitnoteline.png
           ./appimagetool AppDir GitNoteLine-PC-x86_64.AppImage
 
       - name: Build deb
@@ -167,9 +168,10 @@ jobs:
           chmod +x appimagetool
           mkdir -p AppDir/usr/bin
           cp dist/GitNoteLine-PC AppDir/usr/bin/
-          printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nCategories=Office;\n' > AppDir/gitnoteline.desktop
+          printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nIcon=gitnoteline\nCategories=Office;\n' > AppDir/gitnoteline.desktop
           cp AppDir/usr/bin/GitNoteLine-PC AppDir/AppRun
           chmod +x AppRun
+          printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > AppDir/gitnoteline.png
           ./appimagetool AppDir GitNoteLine-PC-aarch64.AppImage
 
       - name: Build deb
