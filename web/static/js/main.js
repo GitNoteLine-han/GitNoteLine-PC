@@ -24,44 +24,67 @@
   // ── Initialize ───────────────────────────────────────────────
 
   async function init() {
-    await loadRepo()
+    await loadRepos()
     await loadNotes()
   }
 
-  // ── Load repository ──────────────────────────────────────────
+  // ── Load repositories ────────────────────────────────────────
 
-  async function loadRepo() {
+  async function loadRepos() {
     try {
-      // Load repository info from API
-      const res = await fetch('/api/repo/info')
+      const res = await fetch('/api/repos/list')
       const data = await res.json()
 
-      if (!data.ok) {
+      if (!data.ok || data.repos.length === 0) {
         repoSelect.innerHTML = '<option value="">未配置仓库</option>'
         return
       }
 
-      // Extract repo name from path or use name field
-      const repoName = data.name || extractRepoName(data.path)
-      repoSelect.innerHTML = `<option value="${data.id}">${repoName}</option>`
-      currentRepo = data.id
+      // Populate repo options
+      repoSelect.innerHTML = ''
+      data.repos.forEach(repo => {
+        const option = document.createElement('option')
+        option.value = repo.id
+        option.textContent = repo.name
+        repoSelect.appendChild(option)
+      })
+
+      // Add "create new repo" option
+      const createOption = document.createElement('option')
+      createOption.value = 'create-new'
+      createOption.textContent = '+ 新建笔记仓库'
+      repoSelect.appendChild(createOption)
+
+      // Set first repo as current
+      currentRepo = data.repos[0].id
+      repoSelect.value = currentRepo
+
+      // Listen for repo changes
+      repoSelect.addEventListener('change', handleRepoChange)
     } catch (err) {
-      console.error('Failed to load repo:', err)
+      console.error('Failed to load repos:', err)
       repoSelect.innerHTML = '<option value="">加载失败</option>'
     }
   }
 
-  function extractRepoName(path) {
-    // Extract the last component of the path as repo name
-    const parts = path.split('/')
-    return parts[parts.length - 1] || '未命名仓库'
+  function handleRepoChange() {
+    const selectedValue = repoSelect.value
+    
+    if (selectedValue === 'create-new') {
+      // Redirect to init/2
+      window.location.href = '/init/2'
+    } else {
+      // Switch to selected repo
+      currentRepo = parseInt(selectedValue)
+      loadNotes()
+    }
   }
 
   // ── Load notes list ──────────────────────────────────────────
 
   async function loadNotes() {
     try {
-      const res = await fetch('/api/notes/list')
+      const res = await fetch(`/api/notes/list?repo_id=${currentRepo}`)
       const data = await res.json()
 
       if (!data.ok) {
@@ -106,7 +129,7 @@
         item.classList.toggle('active', item.dataset.path === notePath)
       })
 
-      const res = await fetch(`/api/notes/${encodeURIComponent(notePath)}`)
+      const res = await fetch(`/api/notes/${encodeURIComponent(notePath)}?repo_id=${currentRepo}`)
       const data = await res.json()
 
       if (!data.ok) {
@@ -152,6 +175,7 @@
         body: JSON.stringify({
           name: noteName,
           content: `# ${noteName.split('/').pop()}\n\n`,
+          repo_id: currentRepo,
         }),
       })
 

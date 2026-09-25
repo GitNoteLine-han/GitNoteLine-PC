@@ -348,6 +348,31 @@ def api_init_step2_4():
 # ── Notes API ───────────────────────────────────────────────────────
 
 
+@main_bp.route("/api/repos/list")
+def api_repos_list():
+    """List all repositories."""
+    db_path = current_app.config.get("DB_PATH", "")
+    
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    repos = conn.execute("SELECT id, name, path FROM repositories").fetchall()
+    conn.close()
+    
+    return jsonify({
+        "ok": True,
+        "repos": [
+            {
+                "id": repo["id"],
+                "name": repo["name"] or Path(repo["path"]).name,
+                "path": repo["path"],
+            }
+            for repo in repos
+        ],
+    })
+
+
 @main_bp.route("/api/repo/info")
 def api_repo_info():
     """Get current repository information."""
@@ -376,13 +401,17 @@ def api_repo_info():
 def api_notes_list():
     """List all .md files in the repository (with subdirectory support)."""
     db_path = current_app.config.get("DB_PATH", "")
+    repo_id = request.args.get("repo_id", type=int)
     
     import sqlite3
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     
-    # Get the first repository (current version only supports one)
-    repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+    # Get the specified repository or the first one
+    if repo_id:
+        repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    else:
+        repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
     conn.close()
     
     if not repo:
@@ -419,12 +448,17 @@ def api_notes_list():
 def api_notes_get(note_path):
     """Get note content."""
     db_path = current_app.config.get("DB_PATH", "")
+    repo_id = request.args.get("repo_id", type=int)
     
     import sqlite3
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     
-    repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+    # Get the specified repository or the first one
+    if repo_id:
+        repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    else:
+        repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
     conn.close()
     
     if not repo:
@@ -460,24 +494,29 @@ def api_notes_create():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"ok": False, "error": "请求体为空"}), 400
-    
+
     note_name = (data.get("name") or "").strip()
     content = data.get("content", "")
-    
+    repo_id = data.get("repo_id")
+
     if not note_name:
         return jsonify({"ok": False, "error": "笔记名称不能为空"}), 400
-    
+
     # Security check: prevent path traversal
     if '..' in note_name or note_name.startswith('/'):
         return jsonify({"ok": False, "error": "无效的笔记名称"}), 400
-    
+
     db_path = current_app.config.get("DB_PATH", "")
-    
+
     import sqlite3
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    
-    repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+
+    # Get the specified repository or the first one
+    if repo_id:
+        repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    else:
+        repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
     conn.close()
     
     if not repo:
