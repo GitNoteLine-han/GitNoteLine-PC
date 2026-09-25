@@ -348,6 +348,30 @@ def api_init_step2_4():
 # ── Notes API ───────────────────────────────────────────────────────
 
 
+@main_bp.route("/api/repo/info")
+def api_repo_info():
+    """Get current repository information."""
+    db_path = current_app.config.get("DB_PATH", "")
+    
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    # Get the first repository (current version only supports one)
+    repo = conn.execute("SELECT id, name, path FROM repositories LIMIT 1").fetchone()
+    conn.close()
+    
+    if not repo:
+        return jsonify({"ok": False, "error": "未配置仓库"}), 404
+    
+    return jsonify({
+        "ok": True,
+        "id": repo["id"],
+        "name": repo["name"],
+        "path": repo["path"],
+    })
+
+
 @main_bp.route("/api/notes/list")
 def api_notes_list():
     """List all .md files in the repository (with subdirectory support)."""

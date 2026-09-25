@@ -32,13 +32,29 @@
 
   async function loadRepo() {
     try {
-      // For now, we just show a placeholder since we only support one repo
-      // In the future, this will load all repos from the database
-      repoSelect.innerHTML = '<option value="default">我的笔记仓库</option>'
-      currentRepo = 'default'
+      // Load repository info from API
+      const res = await fetch('/api/repo/info')
+      const data = await res.json()
+
+      if (!data.ok) {
+        repoSelect.innerHTML = '<option value="">未配置仓库</option>'
+        return
+      }
+
+      // Extract repo name from path or use name field
+      const repoName = data.name || extractRepoName(data.path)
+      repoSelect.innerHTML = `<option value="${data.id}">${repoName}</option>`
+      currentRepo = data.id
     } catch (err) {
       console.error('Failed to load repo:', err)
+      repoSelect.innerHTML = '<option value="">加载失败</option>'
     }
+  }
+
+  function extractRepoName(path) {
+    // Extract the last component of the path as repo name
+    const parts = path.split('/')
+    return parts[parts.length - 1] || '未命名仓库'
   }
 
   // ── Load notes list ──────────────────────────────────────────

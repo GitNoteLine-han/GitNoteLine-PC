@@ -19,23 +19,26 @@
   <div class="main-content">
     <!-- Left sidebar -->
     <aside class="sidebar">
-      <!-- Repository selector -->
+      <!-- Notes list -->
+      <div class="notes-list" id="notes-list">
+        <!-- Notes will be dynamically inserted here -->
+      </div>
+
+      <!-- New note separator and button -->
+      <div class="new-note-section">
+        <div class="separator"></div>
+        <button class="btn-new-note" id="btn-new-note" title="新建笔记">
+          <span class="plus-icon">+</span>
+        </button>
+      </div>
+
+      <!-- Repository selector (moved to bottom) -->
       <div class="repo-selector">
         <select id="repo-select" class="repo-select">
           <option value="">加载中...</option>
         </select>
         <span class="dropdown-arrow">▼</span>
       </div>
-
-      <!-- Notes list -->
-      <div class="notes-list" id="notes-list">
-        <!-- Notes will be dynamically inserted here -->
-      </div>
-
-      <!-- New note button -->
-      <button class="btn-new-note" id="btn-new-note" title="新建笔记">
-        <span class="plus-icon">+</span>
-      </button>
     </aside>
 
     <!-- Right content area - Note viewer -->
