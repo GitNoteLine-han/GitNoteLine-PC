@@ -681,17 +681,19 @@ def api_repo_images_upload(repo_id):
     uploaded = []
     for file in files:
         if file and file.filename:
-            # Generate unique filename with timestamp
             import time
             from pathlib import PurePosixPath
             original_name = PurePosixPath(file.filename).name
             timestamp = int(time.time() * 1000)
-            name_parts = original_name.rsplit('.', 1)
-            if len(name_parts) == 2:
-                new_filename = f"{name_parts[0]}-{timestamp}.{name_parts[1]}"
-            else:
-                new_filename = f"{original_name}-{timestamp}"
-            
+
+            # Extract extension, default to .png
+            ext = original_name.rsplit('.', 1)[-1].lower() if '.' in original_name else 'png'
+            if ext not in ('png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'):
+                ext = 'png'
+
+            # Use standardized filename to avoid encoding issues
+            new_filename = f"img-{timestamp}.{ext}"
+
             file_path = img_dir / new_filename
             file.save(file_path)
             
