@@ -920,3 +920,318 @@ def init_step2_4(
         conn.close()
         return {"ok": False, "error": str(e)}
 
+
+# ── Sync operations ────────────────────────────────────────────────
+
+
+def _get_repo_with_credential(db_path: str, repo_id: int) -> dict | None:
+    """Get repo info with decrypted credential."""
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    repo = conn.execute(
+        "SELECT id, path, remote_url, credential_id FROM repositories WHERE id = ?",
+        (repo_id,)
+    ).fetchone()
+
+    if not repo:
+        conn.close()
+        return None
+
+    result = {
+        "id": repo["id"],
+        "path": Path(repo["path"]),
+        "remote_url": repo["remote_url"],
+        "credential_id": repo["credential_id"],
+        "token": None,
+    }
+
+    # Get decrypted credential if exists
+    if repo["credential_id"]:
+        token = get_credential(conn, repo["credential_id"])
+        result["token"] = token
+
+    # Get git identity
+    git_name = conn.execute("SELECT value FROM settings WHERE key = 'git_name'").fetchone()
+    git_email = conn.execute("SELECT value FROM settings WHERE key = 'git_email'").fetchone()
+    result["git_name"] = git_name["value"] if git_name else ""
+    result["git_email"] = git_email["value"] if git_email else ""
+
+    conn.close()
+    return result
+
+
+def _build_auth_url(remote_url: str, token: str) -> str:
+    """Build authenticated URL for HTTPS git operations."""
+    parsed = urlparse(remote_url)
+    if parsed.scheme in ("http", "https"):
+        return remote_url.replace(
+            f"{parsed.scheme}://{parsed.netloc}",
+            f"{parsed.scheme}://{token}@{parsed.netloc}"
+        )
+    return remote_url
+
+
+def _classify_git_error(stderr: str) -> str:
+    """Classify git error into user-friendly message."""
+    stderr_lower = stderr.lower()
+    if any(kw in stderr_lower for kw in [
+        "authentication", "403", "401", "could not read password",
+        "terminal prompts disabled"
+    ]):
+        return "认证失败，请检查凭证"
+    elif any(kw in stderr_lower for kw in [
+        "could not resolve", "unable to access", "network"
+    ]):
+        return "网络错误，无法连接远程仓库"
+    else:
+        return f"Git 错误: {stderr.strip()}"
+
+
+def sync_pull(db_path: str, repo_id: int) -> dict:
+    """Pull from remote repository.
+
+    Returns:
+        dict with 'ok', 'error' (if failed)
+    """
+    repo_info = _get_repo_with_credential(db_path, repo_id)
+
+    if not repo_info:
+        return {"ok": False, "error": "仓库不存在"}
+
+    if not repo_info["remote_url"]:
+        return {"ok": False, "error": "仓库没有配置远程地址"}
+
+    if not repo_info["token"]:
+        return {"ok": False, "error": "仓库没有配置凭证"}
+
+    repo_path = repo_info["path"]
+    git_env = os.environ.copy()
+    git_env["GIT_TERMINAL_PROMPT"] = "0"
+
+    # Build authenticated URL
+    auth_url = _build_auth_url(repo_info["remote_url"], repo_info["token"])
+
+    # Temporarily set authenticated remote
+    subprocess.run(
+        ["git", "remote", "set-url", "origin", auth_url],
+        cwd=repo_path, capture_output=True, timeout=5,
+    )
+
+    try:
+        # Get current branch
+        branch_result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+
+        if branch_result.returncode != 0:
+            return {"ok": False, "error": "无法获取当前分支"}
+
+        current_branch = branch_result.stdout.strip()
+
+        # Git pull
+        pull_result = subprocess.run(
+            ["git", "pull", "origin", current_branch, "--allow-unrelated-histories", "--no-edit"],
+            cwd=repo_path, capture_output=True, text=True, timeout=30,
+            env=git_env,
+        )
+
+        if pull_result.returncode != 0:
+            # Check if it's a merge conflict
+            if "CONFLICT" in pull_result.stdout or "CONFLICT" in pull_result.stderr:
+                # Auto-merge: add all and commit
+                subprocess.run(
+                    ["git", "add", "-A"],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", "Auto-merge conflict resolution"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=10,
+                )
+            else:
+                error_msg = _classify_git_error(pull_result.stderr)
+                return {"ok": False, "error": error_msg}
+
+        return {"ok": True}
+
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "操作超时"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        # Restore original URL
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", repo_info["remote_url"]],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+
+def sync_push(db_path: str, repo_id: int) -> dict:
+    """Commit all changes and push to remote.
+
+    Updates .gitnoteline.yaml last_sync before pushing.
+
+    Returns:
+        dict with 'ok', 'error' (if failed)
+    """
+    repo_info = _get_repo_with_credential(db_path, repo_id)
+
+    if not repo_info:
+        return {"ok": False, "error": "仓库不存在"}
+
+    if not repo_info["remote_url"]:
+        return {"ok": False, "error": "仓库没有配置远程地址"}
+
+    if not repo_info["token"]:
+        return {"ok": False, "error": "仓库没有配置凭证"}
+
+    repo_path = repo_info["path"]
+    git_env = os.environ.copy()
+    git_env["GIT_TERMINAL_PROMPT"] = "0"
+
+    try:
+        # Configure git user for this repo
+        if repo_info["git_name"]:
+            subprocess.run(
+                ["git", "config", "user.name", repo_info["git_name"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+        if repo_info["git_email"]:
+            subprocess.run(
+                ["git", "config", "user.email", repo_info["git_email"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+
+        # Update .gitnoteline.yaml
+        _write_gitnoteline_yaml(repo_path)
+
+        # Stage all changes
+        subprocess.run(
+            ["git", "add", "-A"],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+        # Check if there are changes to commit
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+
+        if status_result.stdout.strip():
+            # Commit changes
+            commit_result = subprocess.run(
+                ["git", "commit", "-m", "Update notes"],
+                cwd=repo_path, capture_output=True, text=True, timeout=10,
+            )
+
+            if commit_result.returncode != 0:
+                return {"ok": False, "error": f"提交失败: {commit_result.stderr}"}
+
+        # Build authenticated URL
+        auth_url = _build_auth_url(repo_info["remote_url"], repo_info["token"])
+
+        # Temporarily set authenticated remote
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", auth_url],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+        # Get current branch
+        branch_result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+
+        if branch_result.returncode != 0:
+            return {"ok": False, "error": "无法获取当前分支"}
+
+        current_branch = branch_result.stdout.strip()
+
+        # Git push
+        push_result = subprocess.run(
+            ["git", "push", "origin", current_branch],
+            cwd=repo_path, capture_output=True, text=True, timeout=30,
+            env=git_env,
+        )
+
+        if push_result.returncode != 0:
+            error_msg = _classify_git_error(push_result.stderr)
+            return {"ok": False, "error": error_msg}
+
+        return {"ok": True}
+
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "操作超时"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        # Restore original URL
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", repo_info["remote_url"]],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+
+def get_sync_status(db_path: str, repo_id: int) -> dict:
+    """Get sync status for a repository.
+
+    Returns:
+        dict with 'ok', 'has_remote', 'ahead' (commits ahead of remote), 'behind' (commits behind)
+    """
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    repo = conn.execute(
+        "SELECT path, remote_url FROM repositories WHERE id = ?",
+        (repo_id,)
+    ).fetchone()
+    conn.close()
+
+    if not repo:
+        return {"ok": False, "error": "仓库不存在"}
+
+    repo_path = Path(repo["path"])
+    has_remote = bool(repo["remote_url"])
+
+    result = {
+        "ok": True,
+        "has_remote": has_remote,
+        "ahead": 0,
+        "behind": 0,
+    }
+
+    if not has_remote:
+        return result
+
+    try:
+        # Get current branch
+        branch_result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+
+        if branch_result.returncode != 0:
+            return result
+
+        current_branch = branch_result.stdout.strip()
+
+        # Get ahead/behind count
+        status_result = subprocess.run(
+            ["git", "rev-list", "--left-right", "--count", f"HEAD...origin/{current_branch}"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+
+        if status_result.returncode == 0:
+            parts = status_result.stdout.strip().split()
+            if len(parts) == 2:
+                result["ahead"] = int(parts[0])
+                result["behind"] = int(parts[1])
+
+    except Exception:
+        pass
+
+    return result
+

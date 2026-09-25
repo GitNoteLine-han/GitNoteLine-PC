@@ -19,6 +19,7 @@
   const noteNameInput = document.getElementById('note-name-input')
   const btnCancelNote = document.getElementById('btn-cancel-note')
   const dialogError = document.getElementById('dialog-error')
+  const btnSync = document.getElementById('btn-sync')
 
   let currentRepo = null
   let currentNotePath = null
@@ -29,6 +30,10 @@
     await loadRepos()
     await loadNotes()
     setupEventListeners()
+    // Auto-pull on startup
+    if (currentRepo) {
+      syncPull()
+    }
   }
 
   function setupEventListeners() {
@@ -38,6 +43,57 @@
         window.location.href = `/editor?path=${encodeURIComponent(currentNotePath)}&repo_id=${currentRepo}`
       }
     })
+  }
+
+  // ── Sync operations ──────────────────────────────────────────
+
+  async function syncPull() {
+    if (!currentRepo) return
+
+    setSyncState('syncing')
+
+    try {
+      const res = await fetch(`/api/repo/${currentRepo}/pull`, { method: 'POST' })
+      const data = await res.json()
+
+      if (data.ok) {
+        setSyncState('success')
+        // Reload notes after pull
+        await loadNotes()
+      } else {
+        setSyncState('error', data.error)
+      }
+    } catch (err) {
+      setSyncState('error', '网络错误')
+    }
+  }
+
+  function setSyncState(state, message) {
+    if (!btnSync) return
+
+    btnSync.classList.remove('syncing', 'error')
+
+    switch (state) {
+      case 'syncing':
+        btnSync.classList.add('syncing')
+        btnSync.title = '同步中...'
+        break
+      case 'success':
+        btnSync.title = '已同步'
+        // Clear success state after 3 seconds
+        setTimeout(() => {
+          if (btnSync.title === '已同步') {
+            btnSync.title = '同步'
+          }
+        }, 3000)
+        break
+      case 'error':
+        btnSync.classList.add('error')
+        btnSync.title = message || '同步失败'
+        break
+      default:
+        btnSync.title = '同步'
+    }
   }
 
   // ── Load repositories ────────────────────────────────────────

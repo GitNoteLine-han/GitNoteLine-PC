@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>设置 - GitNoteLine</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="setting-layout">
+  <header class="setting-header">
+    <a href="/" class="btn-back">← 返回</a>
+    <h1>设置</h1>
+  </header>
+
+  <main class="setting-content">
+    <!-- Commit Settings -->
+    <section class="setting-section">
+      <h2 class="setting-section-title">提交信息</h2>
+
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <span class="setting-item-label">用户名</span>
+          <span class="setting-item-desc" id="git-name">加载中...</span>
+        </div>
+        <button class="btn-edit-setting" data-field="git_name" title="编辑">
+          <img src="/icons/pen-to-square-solid-full.svg" alt="编辑" width="14" height="14">
+        </button>
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-item-info">
+          <span class="setting-item-label">邮箱</span>
+          <span class="setting-item-desc" id="git-email">加载中...</span>
+        </div>
+        <button class="btn-edit-setting" data-field="git_email" title="编辑">
+          <img src="/icons/pen-to-square-solid-full.svg" alt="编辑" width="14" height="14">
+        </button>
+      </div>
+    </section>
+
+    <!-- Advanced Options (link to sub-page) -->
+    <section class="setting-section">
+      <a href="/setting/advanced" class="setting-item setting-item-link">
+        <div class="setting-item-info">
+          <span class="setting-item-label">高级选项</span>
+        </div>
+        <span class="setting-item-arrow">→</span>
+      </a>
+    </section>
+
+    <!-- Repository Info (link to sub-page) -->
+    <section class="setting-section">
+      <a href="/setting/repo" class="setting-item setting-item-link">
+        <div class="setting-item-info">
+          <span class="setting-item-label">仓库信息</span>
+        </div>
+        <span class="setting-item-arrow">→</span>
+      </a>
+    </section>
+
+    <!-- About (link to sub-page) -->
+    <section class="setting-section">
+      <a href="/setting/about" class="setting-item setting-item-link">
+        <div class="setting-item-info">
+          <span class="setting-item-label">关于</span>
+        </div>
+        <span class="setting-item-arrow">→</span>
+      </a>
+    </section>
+  </main>
+
+  <script src="/js/setting.js"></script>
+</body>
+</html>

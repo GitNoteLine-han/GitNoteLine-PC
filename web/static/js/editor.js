@@ -46,6 +46,9 @@
       return
     }
 
+    // Auto-pull on startup (in background, don't block UI)
+    syncPull()
+
     // Load note content
     await loadNote()
 
@@ -62,6 +65,49 @@
 
     // Event listeners
     setupEventListeners()
+  }
+
+  // ── Sync operations ──────────────────────────────────────────
+
+  async function syncPull() {
+    if (!currentRepoId) return
+
+    try {
+      const res = await fetch(`/api/repo/${currentRepoId}/pull`, { method: 'POST' })
+      const data = await res.json()
+
+      if (data.ok) {
+        // Reload note content after pull
+        await loadNote()
+        // Update editor content if already initialized
+        if (currentMode === 'monaco' && monacoEditor) {
+          monacoEditor.setValue(noteContent)
+          updatePreview()
+        } else if (currentMode === 'tiptap' && quillEditor) {
+          const htmlContent = marked.parse(noteContent)
+          quillEditor.root.innerHTML = htmlContent
+        }
+      } else {
+        console.warn('Auto-pull failed:', data.error)
+      }
+    } catch (err) {
+      console.warn('Auto-pull failed:', err.message)
+    }
+  }
+
+  async function syncPush() {
+    if (!currentRepoId) return
+
+    try {
+      const res = await fetch(`/api/repo/${currentRepoId}/push`, { method: 'POST' })
+      const data = await res.json()
+
+      if (!data.ok) {
+        console.warn('Auto-push failed:', data.error)
+      }
+    } catch (err) {
+      console.warn('Auto-push failed:', err.message)
+    }
   }
 
   // Load note content from server
@@ -335,11 +381,14 @@
       noteContent = content
       isDirty = false
       alert('保存成功！')
-      
+
       // Reload images if in Monaco mode
       if (currentMode === 'monaco') {
         loadExistingImages()
       }
+
+      // Auto-push after save
+      syncPush()
     } catch (err) {
       alert('保存失败：' + err.message)
     }

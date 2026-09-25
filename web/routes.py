@@ -64,6 +64,12 @@ def editor():
     return current_app.send_static_file("editor.html")
 
 
+@main_bp.route("/setting")
+def setting():
+    """Settings page."""
+    return current_app.send_static_file("setting.html")
+
+
 @main_bp.route("/init/1")
 def init_page():
     db_path = current_app.config.get("DB_PATH", "")
@@ -103,6 +109,61 @@ def init_step2_4_page():
 @main_bp.route("/api/hello")
 def api_hello():
     return jsonify({"message": "Hello from GitNoteLine!"})
+
+
+@main_bp.route("/api/settings")
+def api_settings():
+    """Get user settings (git name, email)."""
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    git_name = conn.execute("SELECT value FROM settings WHERE key = 'git_name'").fetchone()
+    git_email = conn.execute("SELECT value FROM settings WHERE key = 'git_email'").fetchone()
+
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "git_name": git_name["value"] if git_name else "",
+        "git_email": git_email["value"] if git_email else "",
+    })
+
+
+@main_bp.route("/api/settings", methods=["POST"])
+def api_settings_update():
+    """Update a setting value."""
+    from flask import request
+
+    data = request.get_json()
+    key = data.get("key")
+    value = data.get("value")
+
+    if not key or value is None:
+        return jsonify({"ok": False, "error": "缺少参数"}), 400
+
+    if key not in ("git_name", "git_email"):
+        return jsonify({"ok": False, "error": "无效的设置项"}), 400
+
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+
+    # Check if setting exists
+    existing = conn.execute("SELECT key FROM settings WHERE key = ?", (key,)).fetchone()
+
+    if existing:
+        conn.execute("UPDATE settings SET value = ? WHERE key = ?", (value, key))
+    else:
+        conn.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, value))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True})
 
 
 @main_bp.route("/api/init/prefill")
@@ -383,23 +444,24 @@ def api_repos_list():
 def api_repo_info():
     """Get current repository information."""
     db_path = current_app.config.get("DB_PATH", "")
-    
+
     import sqlite3
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    
+
     # Get the first repository (current version only supports one)
-    repo = conn.execute("SELECT id, name, path FROM repositories LIMIT 1").fetchone()
+    repo = conn.execute("SELECT id, name, path, remote_url FROM repositories LIMIT 1").fetchone()
     conn.close()
-    
+
     if not repo:
         return jsonify({"ok": False, "error": "未配置仓库"}), 404
-    
+
     return jsonify({
         "ok": True,
         "id": repo["id"],
         "name": repo["name"],
         "path": repo["path"],
+        "remote_url": repo["remote_url"] or "",
     })
 
 
@@ -690,10 +752,50 @@ def api_notes_create():
     try:
         # Create parent directories if needed
         note_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Write the file
         note_file.write_text(content, encoding='utf-8')
-        
+
         return jsonify({"ok": True, "path": note_name})
     except Exception as e:
         return jsonify({"ok": False, "error": f"创建失败: {str(e)}"}), 500
+
+
+# ── Sync API ───────────────────────────────────────────────────────
+
+
+@main_bp.route("/api/repo/<int:repo_id>/pull", methods=["POST"])
+def api_repo_pull(repo_id):
+    """Pull from remote repository."""
+    db_path = current_app.config.get("DB_PATH", "")
+    from core.services import sync_pull
+
+    result = sync_pull(db_path, repo_id)
+
+    if not result.get("ok"):
+        return jsonify(result), 400
+
+    return jsonify(result)
+
+
+@main_bp.route("/api/repo/<int:repo_id>/push", methods=["POST"])
+def api_repo_push(repo_id):
+    """Commit and push to remote repository."""
+    db_path = current_app.config.get("DB_PATH", "")
+    from core.services import sync_push
+
+    result = sync_push(db_path, repo_id)
+
+    if not result.get("ok"):
+        return jsonify(result), 400
+
+    return jsonify(result)
+
+
+@main_bp.route("/api/repo/<int:repo_id>/sync-status")
+def api_repo_sync_status(repo_id):
+    """Get sync status for a repository."""
+    db_path = current_app.config.get("DB_PATH", "")
+    from core.services import get_sync_status
+
+    return jsonify(get_sync_status(db_path, repo_id))

@@ -645,17 +645,53 @@ body {
   justify-content: center;
 }
 
-.btn-icon svg {
+.btn-icon svg,
+.btn-icon img {
   fill: currentColor;
   color: var(--gray-600);
+  width: 20px;
+  height: 20px;
+}
+
+/* For img tags with SVG src, use filter to change color */
+.btn-icon img {
+  filter: brightness(0) saturate(100%) invert(45%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(90%);
 }
 
 .btn-icon:hover {
   background: var(--gray-100);
 }
 
-.btn-icon:hover svg {
+.btn-icon:hover svg,
+.btn-icon:hover img {
   color: var(--gray-800);
+}
+
+.btn-icon:hover img {
+  filter: brightness(0) saturate(100%) invert(20%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(100%);
+}
+
+/* Sync button states */
+.btn-sync {
+  position: relative;
+}
+
+.btn-sync.syncing img {
+  animation: spin 1s linear infinite;
+  filter: brightness(0) saturate(100%) invert(45%) sepia(50%) saturate(2000%) hue-rotate(200deg) brightness(95%) contrast(90%);
+}
+
+.btn-sync.error img {
+  filter: brightness(0) saturate(100%) invert(40%) sepia(90%) saturate(2000%) hue-rotate(340deg) brightness(100%) contrast(95%);
+}
+
+.btn-sync.error:hover img {
+  filter: brightness(0) saturate(100%) invert(35%) sepia(95%) saturate(2500%) hue-rotate(340deg) brightness(90%) contrast(100%);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .main-content {
@@ -778,17 +814,29 @@ body {
   flex-shrink: 0;
 }
 
-.btn-new-note svg {
+.btn-new-note svg,
+.btn-new-note img {
   fill: currentColor;
   color: var(--gray-500);
+  width: 16px;
+  height: 16px;
+}
+
+.btn-new-note img {
+  filter: brightness(0) saturate(100%) invert(50%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(90%);
 }
 
 .btn-new-note:hover {
   background: var(--gray-100);
 }
 
-.btn-new-note:hover svg {
+.btn-new-note:hover svg,
+.btn-new-note:hover img {
   color: var(--blue-500);
+}
+
+.btn-new-note:hover img {
+  filter: brightness(0) saturate(100%) invert(45%) sepia(50%) saturate(2000%) hue-rotate(200deg) brightness(95%) contrast(90%);
 }
 
 /* ── Note viewer ────────────────────────────────────────────────── */
@@ -849,9 +897,19 @@ body {
   transition: all 0.15s ease;
 }
 
+.btn-edit-note img {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) saturate(100%) invert(50%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(90%);
+}
+
 .btn-edit-note:hover {
   background: var(--gray-200);
   color: var(--blue-500);
+}
+
+.btn-edit-note:hover img {
+  filter: brightness(0) saturate(100%) invert(45%) sepia(50%) saturate(2000%) hue-rotate(200deg) brightness(95%) contrast(90%);
 }
 
 .note-preview-content {
@@ -1108,4 +1166,176 @@ body {
   .card {
     padding: 16px;
   }
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   Settings Page
+   ═════════════════════════════════════════════════════════════════════ */
+
+.setting-layout {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--gray-50) 0%, var(--white) 50%, var(--gray-50) 100%);
+}
+
+.setting-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.setting-header h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin: 0;
+}
+
+.btn-back {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--gray-100);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--gray-700);
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background 0.15s ease;
+}
+
+.btn-back:hover {
+  background: var(--gray-200);
+}
+
+.setting-content {
+  max-width: 600px;
+  margin: 32px auto;
+  padding: 0 24px;
+}
+
+.setting-section {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+
+.setting-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 16px 20px 8px;
+  margin: 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-item-label {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--gray-800);
+}
+
+.setting-item-desc {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+  word-break: break-all;
+}
+
+.setting-item-control {
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+
+.setting-select {
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  font-size: 0.9rem;
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.setting-select:hover {
+  border-color: var(--gray-400);
+}
+
+.setting-select:focus {
+  outline: none;
+  border-color: var(--blue-500);
+  box-shadow: 0 0 0 3px var(--blue-100);
+}
+
+/* Edit button in settings */
+.btn-edit-setting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-edit-setting img {
+  width: 14px;
+  height: 14px;
+  filter: brightness(0) saturate(100%) invert(50%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(95%) contrast(90%);
+}
+
+.btn-edit-setting:hover {
+  background: var(--gray-100);
+}
+
+.btn-edit-setting:hover img {
+  filter: brightness(0) saturate(100%) invert(45%) sepia(50%) saturate(2000%) hue-rotate(200deg) brightness(95%) contrast(90%);
+}
+
+/* Setting item as link */
+.setting-item-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.setting-item-link:hover {
+  background: var(--gray-50);
+}
+
+.setting-item-arrow {
+  color: var(--gray-400);
+  font-size: 1.2rem;
+  flex-shrink: 0;
 }
