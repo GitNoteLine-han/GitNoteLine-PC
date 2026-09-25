@@ -329,18 +329,38 @@ def init_step2_1(
                     ["git", "remote", "set-url", "origin", auth_url],
                     cwd=repo_path, capture_output=True, timeout=5,
                 )
-                
-                # Step 1: git pull (handle empty remote gracefully)
-                pull_result = subprocess.run(
-                    ["git", "pull", "origin", "main", "--allow-unrelated-histories"],
-                    cwd=repo_path, capture_output=True, text=True, timeout=30,
+
+                # Step 1: Check if remote is empty
+                ls_remote_result = subprocess.run(
+                    ["git", "ls-remote", "origin"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=10,
                 )
                 
-                # Check if pull failed due to auth or network (not just empty remote)
-                if pull_result.returncode != 0:
-                    stderr = pull_result.stderr.lower()
-                    # Empty remote is OK, continue
-                    if "no commits" not in stderr and "no tracking information" not in stderr:
+                # If ls-remote failed, check if it's an auth/network error
+                if ls_remote_result.returncode != 0:
+                    stderr = ls_remote_result.stderr.lower()
+                    # Rollback before returning error
+                    _rollback_repo(conn, repo_path, repo_id, credential_id)
+                    conn.close()
+                    if "authentication" in stderr or "403" in stderr or "401" in stderr:
+                        return {"ok": False, "error": "认证失败，请检查凭证是否正确"}
+                    elif "could not resolve" in stderr or "network" in stderr:
+                        return {"ok": False, "error": "网络错误，无法连接远程仓库"}
+                    else:
+                        return {"ok": False, "error": f"无法访问远程仓库: {ls_remote_result.stderr}"}
+                
+                remote_is_empty = not ls_remote_result.stdout.strip()
+                
+                # Step 2: git pull only if remote is not empty
+                if not remote_is_empty:
+                    pull_result = subprocess.run(
+                        ["git", "pull", "origin", "main", "--allow-unrelated-histories"],
+                        cwd=repo_path, capture_output=True, text=True, timeout=30,
+                    )
+
+                    # Check if pull failed
+                    if pull_result.returncode != 0:
+                        stderr = pull_result.stderr.lower()
                         # Rollback before returning error
                         _rollback_repo(conn, repo_path, repo_id, credential_id)
                         conn.close()
@@ -350,8 +370,8 @@ def init_step2_1(
                             return {"ok": False, "error": "网络错误，无法连接远程仓库"}
                         else:
                             return {"ok": False, "error": f"拉取失败: {pull_result.stderr}"}
-                
-                # Step 2: Write .gitnoteline.yaml
+
+                # Step 3: Write .gitnoteline.yaml
                 try:
                     _write_gitnoteline_yaml(repo_path)
                 except Exception as e:
@@ -360,7 +380,7 @@ def init_step2_1(
                     conn.close()
                     return {"ok": False, "error": f"写入配置文件失败: {str(e)}"}
                 
-                # Step 3: git add + commit + push
+                # Step 4: git add + commit + push
                 subprocess.run(
                     ["git", "add", ".gitnoteline.yaml"],
                     cwd=repo_path, capture_output=True, timeout=5,
