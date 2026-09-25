@@ -438,3 +438,35 @@ GET  /api/repo/<id>/sync-status  # 获取同步状态
 3. **零前端构建** — 不用 npm/webpack，浏览器直接跑
 4. **core/ 是共享层** — 业务逻辑与访问方式解耦，未来接入 webview 时无需重写
 5. **Git 是真相来源** — 笔记的版本历史由 Git 管理，应用不重复造版本控制
+
+---
+
+## 开发趣事
+
+### 🖼️ 图片显示之谜 — 一个 bug 套五个
+
+**症状：** 图片拖进文档后，最开始能正常显示，重新打开就变回原始 markdown。
+
+**排查过程（堪称连环翻车现场）：**
+
+**第一层：文件名里有空格和中文**
+上传的图片保留了原始文件名，比如 `截图 2026-09-25 11-48-22-xxx.png`。Markdown 解析器遇到 `![](./img/截图 2026-...)` 里的空格就直接截断路径，图片当然加载不出来。
+→ 修复：上传时统一命名为 `img-{timestamp}.ext`，不再保留原始文件名。
+
+**第二层：浏览器缓存旧 JS**
+代码改了但浏览器还在用旧版 JS，因为 Flask 开发服务器没设 no-cache 头。用户看到的"修复"其实是旧代码在跑。
+→ 修复：给所有响应加 `Cache-Control: no-cache, no-store, must-revalidate`。
+
+**第三层：syncPull 无条件覆盖本地内容**
+页面加载时 `syncPull()` 在后台跑，如果上次 push 失败了，远端没有图片引用，pull 下来就把本地刚保存的内容覆盖了。编辑器里图片凭空消失。
+→ 修复：`syncPull` 加了 `isDirty` 检查 + 后端改为先 fetch 判断是否需要 merge，有本地更改时先自动提交。
+
+**第四层：syncPull 给 Quill 设内容时没重写路径**
+Monaco 模式有 `updatePreview()` 做路径重写，但 Quill 模式在 syncPull 里直接 `marked.parse(noteContent)` 喂给编辑器，`noteContent` 里还是 `./img/` 原始路径，浏览器解析成 `/img/...` → 404。
+→ 修复：syncPull 的 Quill 分支也加上路径重写正则。
+
+**第五层：Quill 的 clipboard 偷吃路径前缀**
+`dangerouslyPasteHTML()` 把 `<img src="/repo/1/img/xxx.png">` 转成 Delta 格式时，Quill 的 clipboard 模块会自作主张把路径解析成 `/img/xxx.png`（吃掉了 `/repo/1/` 前缀）。图片闪一下就变成加载失败图标。
+→ 修复：注册自定义 clipboard matcher，直接取 `node.getAttribute('src')` 原样保留，不让 Quill 碰路径。
+
+**教训：** 一个"图片不显示"的问题，涉及文件名编码、浏览器缓存、Git 同步、两种编辑器模式的路径转换、以及第三方库的内部行为。每一层修完都觉得"这次肯定好了"，结果刷新一下又出新问题。堪称洋葱式 debug 🧅

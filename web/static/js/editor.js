@@ -85,7 +85,11 @@
           monacoEditor.setValue(noteContent)
           updatePreview()
         } else if (currentMode === 'tiptap' && quillEditor) {
-          const htmlContent = marked.parse(noteContent)
+          const displayContent = noteContent.replace(
+            /!\[([^\]]*)\]\(\.\/img\/([^)]+)\)/g,
+            `![$1](/repo/${currentRepoId}/img/$2)`
+          )
+          const htmlContent = marked.parse(displayContent)
           quillEditor.clipboard.dangerouslyPasteHTML(htmlContent)
         }
       } else {
@@ -250,8 +254,6 @@
         console.error('Failed to parse markdown:', err)
         previewContent.innerHTML = '<p style="color: red;">预览渲染失败</p>'
       }
-    } else {
-      console.warn('Preview update skipped:', { monacoEditor: !!monacoEditor, previewContent: !!previewContent })
     }
   }
 
@@ -281,6 +283,15 @@
             }
           }
         }
+      })
+
+      // Custom clipboard matcher: preserve img src as-is (prevent Quill from resolving URLs)
+      quillEditor.clipboard.addMatcher('img', function (node, delta) {
+        const src = node.getAttribute('src')
+        if (src) {
+          delta.ops = [{ insert: { image: src } }]
+        }
+        return delta
       })
 
       // Convert Markdown to HTML and set content
