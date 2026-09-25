@@ -25,6 +25,7 @@
 
   let hasRemote = false
   let remoteHost = ''
+  let credentialNameManuallyEdited = false
 
   // ── Check repo ───────────────────────────────────────────────
 
@@ -68,11 +69,17 @@
       if (hasRemote) {
         remoteInfoRow.classList.remove('hidden')
         remoteUrl.textContent = data.remote_url || ''
-        
-        // Extract host for GitHub warning
+
+        // Extract host for GitHub warning and auto-fill credential name
         try {
           const parsed = new URL(data.remote_url)
           remoteHost = parsed.hostname
+          
+          // Auto-fill credential name if not manually edited
+          if (!credentialNameManuallyEdited) {
+            const defaultName = getDefaultCredentialName(remoteHost)
+            credentialNameField.value = defaultName
+          }
         } catch (_e) {
           remoteHost = ''
         }
@@ -95,6 +102,27 @@
       submitBtn.classList.add('hidden')
     }
   })
+
+  // Track if user manually edits credential name
+  credentialNameField.addEventListener('input', () => {
+    credentialNameManuallyEdited = true
+  })
+
+  function getDefaultCredentialName(host) {
+    const hostLower = host.toLowerCase()
+    if (hostLower.includes('github.com')) {
+      return 'GitHub 个人账户'
+    } else if (hostLower.includes('gitlab.com')) {
+      return 'GitLab 个人账户'
+    } else if (hostLower.includes('gitee.com')) {
+      return 'Gitee 个人账户'
+    } else if (hostLower.includes('coding.net')) {
+      return 'Coding 个人账户'
+    } else {
+      // For other hosts, use the domain name
+      return `${host} 账户`
+    }
+  }
 
   // ── Credential type change ───────────────────────────────────
 

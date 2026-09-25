@@ -19,6 +19,7 @@
   const spinner = document.getElementById('btn-spinner')
 
   let currentHost = ''
+  let credentialNameManuallyEdited = false
 
   // ── Host detection & auto-fill local path ────────────────────
 
@@ -38,6 +39,12 @@
       currentHost = parsed.hostname
       hostValue.textContent = currentHost
       hostDisplay.classList.remove('hidden')
+      
+      // Auto-fill credential name if not manually edited
+      if (!credentialNameManuallyEdited) {
+        const defaultName = getDefaultCredentialName(currentHost)
+        credentialNameField.value = defaultName
+      }
     } catch (_e) {
       hostDisplay.classList.add('hidden')
       currentHost = ''
@@ -50,6 +57,27 @@
       fetchDefaultPath(url)
     }, 500)
   })
+
+  // Track if user manually edits credential name
+  credentialNameField.addEventListener('input', () => {
+    credentialNameManuallyEdited = true
+  })
+
+  function getDefaultCredentialName(host) {
+    const hostLower = host.toLowerCase()
+    if (hostLower.includes('github.com')) {
+      return 'GitHub 个人账户'
+    } else if (hostLower.includes('gitlab.com')) {
+      return 'GitLab 个人账户'
+    } else if (hostLower.includes('gitee.com')) {
+      return 'Gitee 个人账户'
+    } else if (hostLower.includes('coding.net')) {
+      return 'Coding 个人账户'
+    } else {
+      // For other hosts, use the domain name
+      return `${host} 账户`
+    }
+  }
 
   async function fetchDefaultPath(remoteUrl) {
     try {
