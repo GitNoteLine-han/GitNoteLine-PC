@@ -12,6 +12,8 @@ jobs:
   # ── Windows x64 ────────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -32,14 +34,20 @@ jobs:
 
       - run: pyinstaller gitnoteline.spec
 
-      - uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: GitNoteLine-PC-windows-x64
-          path: dist/GitNoteLine-PC.exe
+          tag_name: testing-windows-x64
+          name: Testing Build (Windows x64)
+          prerelease: true
+          files: dist/GitNoteLine-PC.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── Linux x64 (AppImage + deb) ─────────────────────────────────
   build-linux:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -78,17 +86,22 @@ jobs:
           printf 'Package: gitnoteline-pc\nVersion: 0.1.0~testing\nArchitecture: amd64\nMaintainer: Hanguang <hanguang@hanguangxingchen.top>\nDescription: Git-backed note management tool\n' > deb-pkg/DEBIAN/control
           dpkg-deb --build deb-pkg GitNoteLine-PC_amd64.deb
 
-      - uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: GitNoteLine-PC-linux-x64
-          path: |
-            dist/GitNoteLine-PC
+          tag_name: testing-linux-x64
+          name: Testing Build (Linux x64)
+          prerelease: true
+          files: |
             GitNoteLine-PC-x86_64.AppImage
             GitNoteLine-PC_amd64.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── macOS ARM64 ────────────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -114,14 +127,20 @@ jobs:
           mv dist/GitNoteLine-PC dist/GitNoteLine-PC.app || true
           cd dist && zip -r ../GitNoteLine-PC-macos-arm64.zip GitNoteLine-PC.app
 
-      - uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: GitNoteLine-PC-macos-arm64
-          path: GitNoteLine-PC-macos-arm64.zip
+          tag_name: testing-macos-arm64
+          name: Testing Build (macOS ARM64)
+          prerelease: true
+          files: GitNoteLine-PC-macos-arm64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── Linux ARM64 (AppImage + deb) ───────────────────────────────
   build-linux-arm:
     runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -150,7 +169,7 @@ jobs:
           cp dist/GitNoteLine-PC AppDir/usr/bin/
           printf '[Desktop Entry]\nType=Application\nName=GitNoteLine-PC\nExec=GitNoteLine-PC\nCategories=Office;\n' > AppDir/gitnoteline.desktop
           cp AppDir/usr/bin/GitNoteLine-PC AppDir/AppRun
-          chmod +x AppDir/AppRun
+          chmod +x AppRun
           ./appimagetool AppDir GitNoteLine-PC-aarch64.AppImage || true
 
       - name: Build deb
@@ -160,40 +179,13 @@ jobs:
           printf 'Package: gitnoteline-pc\nVersion: 0.1.0~testing\nArchitecture: arm64\nMaintainer: Hanguang <hanguang@hanguangxingchen.top>\nDescription: Git-backed note management tool\n' > deb-pkg/DEBIAN/control
           dpkg-deb --build deb-pkg GitNoteLine-PC_arm64.deb
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: GitNoteLine-PC-linux-arm64
-          path: |
-            dist/GitNoteLine-PC
-            GitNoteLine-PC-aarch64.AppImage
-            GitNoteLine-PC_arm64.deb
-
-  # ── Publish to Release ─────────────────────────────────────────
-  publish:
-    needs: [build-windows, build-linux, build-macos, build-linux-arm]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Display files
-        run: find artifacts -type f -ls
-
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: testing
-          name: Testing Build
+          tag_name: testing-linux-arm64
+          name: Testing Build (Linux ARM64)
           prerelease: true
           files: |
-            artifacts/GitNoteLine-PC.exe
-            artifacts/GitNoteLine-PC-x86_64.AppImage
-            artifacts/GitNoteLine-PC_amd64.deb
-            artifacts/GitNoteLine-PC-macos-arm64.zip
-            artifacts/GitNoteLine-PC-aarch64.AppImage
-            artifacts/GitNoteLine-PC_arm64.deb
+            GitNoteLine-PC-aarch64.AppImage
+            GitNoteLine-PC_arm64.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
