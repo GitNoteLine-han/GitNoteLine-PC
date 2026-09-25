@@ -243,10 +243,10 @@
         document.execCommand('insertOrderedList', false, null)
         break
       case 'code':
-        document.execCommand('insertHTML', false, '<code>代码</code>')
+        document.execCommand('insertHTML', false, '<code></code>&nbsp;')
         break
       case 'codeBlock':
-        document.execCommand('insertHTML', false, '<pre><code>代码块</code></pre>')
+        document.execCommand('insertHTML', false, '<pre><code></code></pre><p><br></p>')
         break
     }
     isDirty = true
