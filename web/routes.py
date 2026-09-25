@@ -8,6 +8,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, redirect, request
 
 _STATIC = (Path(__file__).parent / "static").resolve()
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 main_bp = Blueprint("main", __name__)
 
@@ -74,6 +75,50 @@ def setting():
 def setting_advanced():
     """Advanced settings page."""
     return current_app.send_static_file("advanced.html")
+
+
+@main_bp.route("/setting/about")
+def setting_about():
+    """About page."""
+    return current_app.send_static_file("about.html")
+
+
+@main_bp.route("/docs/")
+@main_bp.route("/docs/<path:filename>")
+def serve_docs(filename="index.html"):
+    """Serve bundled documentation."""
+    from flask import send_from_directory
+    docs_dir = _PROJECT_ROOT / "docs"
+    target = docs_dir / filename
+    if target.is_dir():
+        filename = str(Path(filename) / "index.html") if filename else "index.html"
+    return send_from_directory(str(docs_dir), filename)
+
+
+@main_bp.route("/about/notice")
+def about_notice():
+    """View NOTICE file as plain text."""
+    from flask import send_file
+    return send_file(_PROJECT_ROOT / "NOTICE", mimetype="text/plain")
+
+
+@main_bp.route("/about/license")
+def about_license():
+    """View LICENSE file as plain text."""
+    from flask import send_file
+    return send_file(_PROJECT_ROOT / "LICENSE", mimetype="text/plain")
+
+
+@main_bp.route("/setting/repo")
+def setting_repo():
+    """Repository management page."""
+    return current_app.send_static_file("setting-repo.html")
+
+
+@main_bp.route("/setting/repo/<int:repo_id>")
+def setting_repo_detail(repo_id):
+    """Repository detail page."""
+    return current_app.send_static_file("setting-repo-detail.html")
 
 
 @main_bp.route("/init/1")
@@ -166,6 +211,217 @@ def api_settings_update():
     else:
         conn.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (key, value))
 
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True})
+
+
+# ── About / Build Info API ────────────────────────────────────────
+
+
+@main_bp.route("/api/build-info")
+def api_build_info():
+    """Return build info from BUILD_NOTICE file."""
+    build_file = _PROJECT_ROOT / "BUILD_NOTICE"
+    if not build_file.exists():
+        return jsonify({"ok": True, "content": ""})
+    return jsonify({"ok": True, "content": build_file.read_text(encoding="utf-8")})
+
+
+# ── Credential Management API ─────────────────────────────────────
+
+
+@main_bp.route("/api/credentials")
+def api_credentials_list():
+    """List all credentials (metadata only, no secrets)."""
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    creds = conn.execute(
+        "SELECT id, name, type, host, created_at FROM credentials ORDER BY id"
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "credentials": [
+            {
+                "id": c["id"],
+                "name": c["name"],
+                "type": c["type"],
+                "host": c["host"] or "",
+                "created_at": c["created_at"] or "",
+            }
+            for c in creds
+        ],
+    })
+
+
+@main_bp.route("/api/credentials", methods=["POST"])
+def api_credentials_create():
+    """Create a new credential."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"ok": False, "error": "请求体为空"}), 400
+
+    name = (data.get("name") or "").strip()
+    cred_type = (data.get("type") or "").strip()
+    secret = (data.get("secret") or "").strip()
+
+    if not name:
+        return jsonify({"ok": False, "error": "密钥名称不能为空"}), 400
+    if cred_type not in ("password", "fine_grained"):
+        return jsonify({"ok": False, "error": "密钥类型无效"}), 400
+    if not secret:
+        return jsonify({"ok": False, "error": "密钥不能为空"}), 400
+
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    cursor = conn.execute(
+        "INSERT INTO credentials (name, type) VALUES (?, ?)",
+        (name, cred_type),
+    )
+    cred_id = cursor.lastrowid
+
+    from core.credentials import store_credential
+    store_credential(conn, cred_id, secret)
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "id": cred_id})
+
+
+@main_bp.route("/api/credentials/<int:cred_id>", methods=["DELETE"])
+def api_credentials_delete(cred_id):
+    """Delete a credential. Blocked if any repo uses it."""
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    cred = conn.execute(
+        "SELECT id, name FROM credentials WHERE id = ?", (cred_id,)
+    ).fetchone()
+    if not cred:
+        conn.close()
+        return jsonify({"ok": False, "error": "密钥不存在"}), 404
+
+    in_use = conn.execute(
+        "SELECT COUNT(*) as cnt FROM repositories WHERE credential_id = ?",
+        (cred_id,),
+    ).fetchone()["cnt"]
+
+    if in_use > 0:
+        conn.close()
+        return jsonify({"ok": False, "error": f"该密钥正在被 {in_use} 个仓库使用，无法删除"}), 400
+
+    conn.execute("DELETE FROM credentials WHERE id = ?", (cred_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True})
+
+
+# ── Repo Management API ───────────────────────────────────────────
+
+
+@main_bp.route("/api/repos")
+def api_repos_list_full():
+    """List all repos with credential info."""
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    repos = conn.execute(
+        """SELECT r.id, r.name, r.path, r.remote_url, r.credential_id, r.created_at,
+                  c.name as credential_name
+           FROM repositories r
+           LEFT JOIN credentials c ON r.credential_id = c.id
+           ORDER BY r.id"""
+    ).fetchall()
+    conn.close()
+
+    return jsonify({
+        "ok": True,
+        "repos": [
+            {
+                "id": r["id"],
+                "name": r["name"] or Path(r["path"]).name,
+                "path": r["path"],
+                "remote_url": r["remote_url"] or "",
+                "credential_id": r["credential_id"],
+                "credential_name": r["credential_name"] or "",
+                "created_at": r["created_at"] or "",
+            }
+            for r in repos
+        ],
+    })
+
+
+@main_bp.route("/api/repos/<int:repo_id>")
+def api_repo_detail(repo_id):
+    """Get detailed info for a single repo."""
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    repo = conn.execute(
+        """SELECT r.id, r.name, r.path, r.remote_url, r.credential_id, r.created_at,
+                  c.name as credential_name, c.type as credential_type
+           FROM repositories r
+           LEFT JOIN credentials c ON r.credential_id = c.id
+           WHERE r.id = ?""",
+        (repo_id,),
+    ).fetchone()
+    conn.close()
+
+    if not repo:
+        return jsonify({"ok": False, "error": "仓库不存在"}), 404
+
+    return jsonify({
+        "ok": True,
+        "id": repo["id"],
+        "name": repo["name"] or Path(repo["path"]).name,
+        "path": repo["path"],
+        "remote_url": repo["remote_url"] or "",
+        "credential_id": repo["credential_id"],
+        "credential_name": repo["credential_name"] or "",
+        "credential_type": repo["credential_type"] or "",
+        "created_at": repo["created_at"] or "",
+    })
+
+
+@main_bp.route("/api/repos/<int:repo_id>", methods=["DELETE"])
+def api_repo_delete(repo_id):
+    """Delete a repo from the database (does not delete local files)."""
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    repo = conn.execute(
+        "SELECT id, path FROM repositories WHERE id = ?", (repo_id,)
+    ).fetchone()
+    if not repo:
+        conn.close()
+        return jsonify({"ok": False, "error": "仓库不存在"}), 404
+
+    conn.execute("DELETE FROM repositories WHERE id = ?", (repo_id,))
     conn.commit()
     conn.close()
 

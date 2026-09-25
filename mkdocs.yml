@@ -1,0 +1,32 @@
+site_name: GitNoteLine
+site_description: 以 Git 为后端的本地笔记管理工具
+docs_dir: doc-src
+site_dir: docs
+site_url: https://gitnoteline-han.github.io/GitNoteLine-PC/
+theme:
+  name: material
+  language: zh
+  custom_dir: overrides
+  palette:
+    - scheme: default
+      primary: white
+      toggle:
+        icon: material/brightness-7
+        name: 切换到深色模式
+    - scheme: slate
+      primary: grey
+      toggle:
+        icon: material/brightness-4
+        name: 切换到浅色模式
+  features:
+    - navigation.instant
+    - navigation.top
+    - navigation.expand
+
+nav:
+  - 首页: index.md
+  - 安装指南: install.md
+  - 快速开始:
+    - 准备 GitHub 仓库: quickstart/github-setup.md
+    - 初始化应用: quickstart/initialization.md
+    - 基本使用: quickstart/basic-usage.md

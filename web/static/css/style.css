@@ -1558,3 +1558,23 @@ body {
   border: 2px dashed var(--blue-400);
   transition: all 0.2s ease;
 }
+
+/* ── Build notice ──────────────────────────────────────────────── */
+
+.build-notice {
+  padding: 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--gray-800);
+  line-height: 1.6;
+  white-space: pre-line;
+  text-align: center;
+}
+
+/* ── Disabled setting item ─────────────────────────────────────── */
+
+.setting-item-disabled {
+  font-size: 0.8rem;
+  color: var(--gray-400);
+  flex-shrink: 0;
+}
