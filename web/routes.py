@@ -17,6 +17,7 @@ main_bp = Blueprint("main", __name__)
 _ALLOWED_BEFORE_INIT = frozenset({
     "/init/1",
     "/init/2/1",
+    "/apitest",
     "/api/hello",
     "/api/init/prefill",
     "/api/init/step1",
@@ -38,9 +39,17 @@ def _check_initialized():
 # ── HTML pages ──────────────────────────────────────────────────────
 
 
+@main_bp.route("/apitest")
+def apitest():
+    return current_app.send_static_file("index.html")
+
+
 @main_bp.route("/")
 def index():
-    return current_app.send_static_file("index.html")
+    # Placeholder for the real main page
+    # When DB exists, this will be the app entry point
+    # When DB doesn't exist, before_request will redirect to /init/1
+    return "<p>GitNoteLine - 主页面开发中...</p>", 200
 
 
 @main_bp.route("/init/1")
