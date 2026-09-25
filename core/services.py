@@ -344,13 +344,16 @@ def init_step2_1(
                 # If ls-remote failed, check if it's an auth/network error
                 if ls_remote_result.returncode != 0:
                     stderr = ls_remote_result.stderr.lower()
+                    # Log the actual error for debugging
+                    import sys
+                    print(f"[DEBUG] ls-remote failed: {ls_remote_result.stderr}", file=sys.stderr)
                     # Rollback before returning error
                     _rollback_repo(conn, repo_path, repo_id, credential_id)
                     conn.close()
-                    if ("authentication" in stderr or "403" in stderr or "401" in stderr or 
+                    if ("authentication" in stderr or "403" in stderr or "401" in stderr or
                         "could not read password" in stderr or "terminal prompts disabled" in stderr):
                         return {"ok": False, "error": "认证失败，请检查凭证是否正确"}
-                    elif "could not resolve" in stderr or "network" in stderr:
+                    elif "could not resolve" in stderr or "unable to access" in stderr:
                         return {"ok": False, "error": "网络错误，无法连接远程仓库"}
                     else:
                         return {"ok": False, "error": f"无法访问远程仓库: {ls_remote_result.stderr}"}
