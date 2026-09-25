@@ -396,15 +396,13 @@
     </div>
   </div>
 
-  <!-- Load Monaco Editor from local -->
-  <script src="/lib/monaco-editor/min/vs/loader.js"></script>
-  
-  <!-- Load marked.js for Markdown parsing -->
+  <!-- Load marked.js and turndown BEFORE Monaco (Monaco's loader creates AMD environment) -->
   <script src="/lib/marked.min.js"></script>
-  
-  <!-- Load turndown for HTML to Markdown conversion -->
   <script src="/lib/turndown.js"></script>
-  
+
+  <!-- Load Monaco Editor from local (creates AMD environment) -->
+  <script src="/lib/monaco-editor/min/vs/loader.js"></script>
+
   <script src="/js/editor.js"></script>
 </body>
 </html>
