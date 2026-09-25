@@ -751,30 +751,30 @@ body {
 
 .repo-select {
   width: 100%;
-  padding: 6px 28px 6px 10px;
+  padding: 6px 28px 6px 0;
   font-size: 0.85rem;
   font-family: var(--font-sans);
-  color: var(--gray-700);
+  color: var(--gray-600);
   background: transparent;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
+  border: none;
+  border-radius: 0;
   cursor: pointer;
   appearance: none;
-  transition: border-color 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .repo-select:hover {
-  border-color: var(--gray-300);
+  color: var(--gray-800);
 }
 
 .repo-select:focus {
   outline: none;
-  border-color: var(--blue-500);
+  color: var(--gray-800);
 }
 
 .dropdown-arrow {
   position: absolute;
-  right: 28px;
+  right: 16px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 0.65rem;
