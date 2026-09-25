@@ -167,3 +167,33 @@ jobs:
             dist/GitNoteLine-PC
             GitNoteLine-PC-aarch64.AppImage
             GitNoteLine-PC_arm64.deb
+
+  # ── Publish to Release ─────────────────────────────────────────
+  publish:
+    needs: [build-windows, build-linux, build-macos, build-linux-arm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Display files
+        run: find artifacts -type f -ls
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: testing
+          name: Testing Build
+          prerelease: true
+          files: |
+            artifacts/GitNoteLine-PC.exe
+            artifacts/GitNoteLine-PC-x86_64.AppImage
+            artifacts/GitNoteLine-PC_amd64.deb
+            artifacts/GitNoteLine-PC-macos-arm64.zip
+            artifacts/GitNoteLine-PC-aarch64.AppImage
+            artifacts/GitNoteLine-PC_arm64.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
