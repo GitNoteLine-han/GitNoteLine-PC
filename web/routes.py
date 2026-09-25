@@ -706,7 +706,7 @@ def api_repo_images_upload(repo_id):
 @main_bp.route("/repo/<int:repo_id>/<path:filename>")
 def serve_repo_file(repo_id, filename):
     """Serve files from the repository directory.
-    
+
     Blocks access to .git and .gitnoteline.yaml for security.
     """
     from flask import send_from_directory

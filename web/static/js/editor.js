@@ -13,7 +13,6 @@
   let noteContent = ''
   let isDirty = false
   let currentRepoId = null
-  let stagedImages = [] // Array of {file, preview, tempPath}
 
   // DOM elements
   const selectionDialog = document.getElementById('editor-selection-dialog')
@@ -30,7 +29,6 @@
   // Image panel elements
   const imagePanel = document.getElementById('image-panel')
   const existingImagesList = document.getElementById('existing-images')
-  const stagedImagesList = document.getElementById('staged-images')
   const btnUploadImage = document.getElementById('btn-upload-image')
 
   // Initialize
@@ -239,10 +237,10 @@
     if (monacoEditor && previewContent) {
       const markdown = monacoEditor.getValue()
       try {
-        // Rewrite ./ paths to /repo/<repo_id>/ for display
+        // Rewrite image paths for display: ./img/xxx -> /repo/<repo_id>/img/xxx
         const displayMarkdown = markdown.replace(
-          /\.\//g,
-          `/repo/${currentRepoId}/`
+          /!\[([^\]]*)\]\(\.\/img\/([^)]+)\)/g,
+          `![$1](/repo/${currentRepoId}/img/$2)`
         )
         previewContent.innerHTML = marked.parse(displayMarkdown)
       } catch (err) {
@@ -258,6 +256,9 @@
   function startTipTap() {
     monacoMode.classList.add('hidden')
     tiptapMode.classList.remove('hidden')
+
+    // Load existing images for the image panel
+    loadExistingImages()
 
     if (!quillEditor) {
       // Initialize Quill editor with custom image handler
@@ -280,67 +281,104 @@
       })
 
       // Convert Markdown to HTML and set content
-      // Rewrite ./img/ paths to /repo/<repo_id>/img/ for display
+      // Rewrite image paths for display: ./img/xxx -> /repo/<repo_id>/img/xxx
       const displayContent = noteContent.replace(
-        /\.\//g,
-        `/repo/${currentRepoId}/`
+        /!\[([^\]]*)\]\(\.\/img\/([^)]+)\)/g,
+        `![$1](/repo/${currentRepoId}/img/$2)`
       )
       const htmlContent = marked.parse(displayContent)
-      quillEditor.root.innerHTML = htmlContent
+      // Use Quill's clipboard API to properly set HTML content
+      quillEditor.clipboard.dangerouslyPasteHTML(htmlContent)
 
       // Track changes
       quillEditor.on('text-change', () => {
         isDirty = true
       })
+
+      // Handle drop events for images
+      quillEditor.root.addEventListener('drop', handleQuillDrop)
+      quillEditor.root.addEventListener('dragover', (e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        quillEditor.root.classList.add('drag-over')
+      })
+      quillEditor.root.addEventListener('dragleave', () => {
+        quillEditor.root.classList.remove('drag-over')
+      })
+      quillEditor.root.addEventListener('drop', () => {
+        quillEditor.root.classList.remove('drag-over')
+      })
     } else {
       // Update content
       const displayContent = noteContent.replace(
-        /\.\//g,
-        `/repo/${currentRepoId}/`
+        /!\[([^\]]*)\]\(\.\/img\/([^)]+)\)/g,
+        `![$1](/repo/${currentRepoId}/img/$2)`
       )
       const htmlContent = marked.parse(displayContent)
-      quillEditor.root.innerHTML = htmlContent
+      // Use Quill's clipboard API to properly set HTML content
+      quillEditor.clipboard.dangerouslyPasteHTML(htmlContent)
     }
   }
 
-  // Custom image handler for Quill - uploads immediately
-  async function handleQuillImage() {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.click()
-
-    input.onchange = async () => {
-      const file = input.files[0]
-      if (!file) return
-
-      const formData = new FormData()
-      formData.append('images', file)
-
-      try {
-        const res = await fetch(`/api/repo/${currentRepoId}/images/upload`, {
-          method: 'POST',
-          body: formData
-        })
-        const data = await res.json()
-
-        if (data.ok && data.uploaded.length > 0) {
-          const uploaded = data.uploaded[0]
-          // Insert image with display path
-          const range = quillEditor.getSelection(true)
-          quillEditor.insertEmbed(range.index, 'image', `/repo/${currentRepoId}/${uploaded.path}`)
-          quillEditor.setSelection(range.index + 1)
-
-          // Show notification
-          showToast('图片已保存到仓库的 `img/` 目录。\n如需管理图片，请使用右侧图片面板。')
-          isDirty = true
-        } else {
-          alert('图片上传失败：' + (data.error || '未知错误'))
-        }
-      } catch (err) {
-        alert('图片上传失败：' + err.message)
-      }
+  // Custom image handler for Quill - shows image panel instead of file picker
+  function handleQuillImage() {
+    // Toggle image panel visibility
+    const imagePanel = document.getElementById('image-panel')
+    if (imagePanel) {
+      imagePanel.classList.toggle('hidden')
     }
+  }
+
+  // Handle drop events in Quill editor
+  function handleQuillDrop(e) {
+    e.preventDefault()
+    e.stopPropagation()
+
+    // Get the dropped data
+    const markdown = e.dataTransfer.getData('text/plain')
+    if (!markdown) return
+
+    // Parse markdown image syntax: ![alt](path)
+    const match = markdown.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
+    if (!match) return
+
+    const alt = match[1]
+    let imagePath = match[2]
+
+    // Convert relative path to display path
+    if (imagePath.startsWith('./img/')) {
+      imagePath = imagePath.replace('./img/', `/repo/${currentRepoId}/img/`)
+    }
+
+    // Calculate drop position using Quill's built-in method
+    const bounds = quillEditor.root.getBoundingClientRect()
+    const x = e.clientX - bounds.left
+    const y = e.clientY - bounds.top
+
+    // Use Quill's getPosition to find the index at drop location
+    let index
+    try {
+      // Try to get position from Quill
+      const position = quillEditor.getBounds(0)
+      if (position) {
+        // Use the container's scrollTop to adjust y coordinate
+        const adjustedY = y + quillEditor.root.scrollTop
+        index = quillEditor.getIndex({ left: x, top: adjustedY })
+      }
+    } catch (err) {
+      // Fallback: insert at end
+      index = quillEditor.getLength()
+    }
+
+    // Ensure index is valid
+    if (index === null || index === undefined || index < 0) {
+      index = quillEditor.getLength()
+    }
+
+    // Insert image at drop position
+    quillEditor.insertEmbed(index, 'image', imagePath)
+    quillEditor.setSelection(index + 1)
+    isDirty = true
   }
 
   // Show toast notification
@@ -376,6 +414,13 @@
       // Convert Quill HTML to Markdown
       const turndownService = new TurndownService()
       content = turndownService.turndown(quillEditor.root.innerHTML)
+      
+      // Convert display paths back to relative paths for storage
+      // /repo/<repo_id>/img/xxx -> ./img/xxx
+      content = content.replace(
+        new RegExp(`!\\[([^\\]]*)\\]\\(/repo/${currentRepoId}/img/([^)]+)\\)`, 'g'),
+        '![$1](./img/$2)'
+      )
     }
 
     // Update mode
@@ -410,10 +455,10 @@
     }
 
     // Convert display paths back to relative paths for storage
-    // /repo/<repo_id>/ -> ./
+    // /repo/<repo_id>/img/xxx -> ./img/xxx
     content = content.replace(
-      new RegExp(`/repo/${currentRepoId}/`, 'g'),
-      './'
+      new RegExp(`!\\[([^\\]]*)\\]\\(/repo/${currentRepoId}/img/([^)]+)\\)`, 'g'),
+      '![$1](./img/$2)'
     )
 
     // Get repo_id from URL
@@ -421,35 +466,6 @@
     const repoId = urlParams.get('repo_id')
 
     try {
-      // If there are staged images, upload them first
-      if (stagedImages.length > 0) {
-        const formData = new FormData()
-        stagedImages.forEach((img, index) => {
-          formData.append('images', img.file, img.file.name)
-        })
-
-        const uploadRes = await fetch(`/api/repo/${currentRepoId}/images/upload`, {
-          method: 'POST',
-          body: formData,
-        })
-
-        const uploadData = await uploadRes.json()
-
-        if (!uploadData.ok) {
-          alert('图片上传失败：' + uploadData.error)
-          return
-        }
-
-        // Replace temporary paths in content with actual paths
-        uploadData.uploaded.forEach((uploaded, index) => {
-          const tempPath = stagedImages[index].tempPath
-          content = content.replace(new RegExp(escapeRegExp(tempPath), 'g'), uploaded.path)
-        })
-
-        stagedImages = []
-        updateStagedImagesList()
-      }
-
       const res = await fetch(`/api/notes/${encodeURIComponent(notePath)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -489,8 +505,12 @@
 
   // ── Image Panel Functions ──────────────────────────────────────
 
-  // Load existing images from repository
-  async function loadExistingImages() {
+  // Image panel state
+  let allImagesLoaded = false
+  let allImages = []
+
+  // Load existing images from repository (paginated)
+  async function loadExistingImages(loadAll = false) {
     if (!existingImagesList) return
 
     try {
@@ -507,11 +527,30 @@
         return
       }
 
+      // Store all images
+      allImages = data.images
+
+      // Determine how many to show
+      const imagesToShow = loadAll ? allImages : allImages.slice(0, 10)
+      allImagesLoaded = loadAll || allImages.length <= 10
+
+      // Render images
       existingImagesList.innerHTML = ''
-      data.images.forEach(img => {
-        const item = createImageItem(img.path, img.name, false)
+      imagesToShow.forEach(img => {
+        const item = createImageItem(img.path, img.name)
         existingImagesList.appendChild(item)
       })
+
+      // Add "view more" button if needed
+      if (!allImagesLoaded) {
+        const viewMoreBtn = document.createElement('div')
+        viewMoreBtn.className = 'image-view-more'
+        viewMoreBtn.textContent = `查看更多 (${allImages.length - 10} 张)`
+        viewMoreBtn.addEventListener('click', () => {
+          loadExistingImages(true)
+        })
+        existingImagesList.appendChild(viewMoreBtn)
+      }
     } catch (err) {
       console.error('Failed to load images:', err)
       existingImagesList.innerHTML = '<div class="image-empty">加载失败</div>'
@@ -519,23 +558,25 @@
   }
 
   // Create image item element
-  function createImageItem(imagePath, imageName, isStaged = false) {
+  function createImageItem(imagePath, imageName) {
     const item = document.createElement('div')
-    item.className = 'image-item' + (isStaged ? ' staged' : '')
+    item.className = 'image-item'
     item.draggable = true
 
-    // Create thumbnail (for existing images, use the actual image; for staged, use preview)
+    // Create thumbnail - use actual image from repository
     const thumbnail = document.createElement('img')
     thumbnail.className = 'image-thumbnail'
-    if (isStaged) {
-      // Find the staged image and use its preview
-      const stagedImg = stagedImages.find(img => img.tempPath === imagePath)
-      if (stagedImg) {
-        thumbnail.src = stagedImg.preview
-      }
-    } else {
-      // For existing images, we can't easily show thumbnails without serving them
-      // So we'll just show a placeholder
+    // Convert relative path to display path
+    let displayPath = imagePath
+    if (imagePath.startsWith('./')) {
+      displayPath = imagePath.replace('./', `/repo/${currentRepoId}/`)
+    } else if (!imagePath.startsWith('/')) {
+      displayPath = `/repo/${currentRepoId}/${imagePath}`
+    }
+    thumbnail.src = displayPath
+    thumbnail.alt = imageName
+    thumbnail.onerror = () => {
+      // Fallback to placeholder if image fails to load
       thumbnail.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40"%3E%3Crect width="40" height="40" fill="%23e5e7eb"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="10" fill="%236b7280"%3EIMG%3C/text%3E%3C/svg%3E'
     }
 
@@ -548,33 +589,10 @@
 
     const path = document.createElement('div')
     path.className = 'image-path'
-    if (isStaged) {
-      // Make path editable for staged images
-      const pathInput = document.createElement('input')
-      pathInput.type = 'text'
-      pathInput.className = 'image-path-input'
-      pathInput.value = imagePath
-      pathInput.addEventListener('change', (e) => {
-        // Update the staged image's temp path
-        const stagedImg = stagedImages.find(img => img.tempPath === imagePath)
-        if (stagedImg) {
-          const oldPath = stagedImg.tempPath
-          stagedImg.tempPath = e.target.value
-          // Update all references in the editor content
-          if (monacoEditor) {
-            const content = monacoEditor.getValue()
-            const newContent = content.replace(new RegExp(escapeRegExp(oldPath), 'g'), e.target.value)
-            monacoEditor.setValue(newContent)
-          }
-        }
-      })
-      info.appendChild(name)
-      info.appendChild(pathInput)
-    } else {
-      path.textContent = imagePath
-      info.appendChild(name)
-      info.appendChild(path)
-    }
+    path.textContent = imagePath
+
+    info.appendChild(name)
+    info.appendChild(path)
 
     item.appendChild(thumbnail)
     item.appendChild(info)
@@ -591,8 +609,8 @@
     return item
   }
 
-  // Handle image upload (staging for Monaco mode)
-  function handleImageUpload() {
+  // Handle image upload - upload directly to repository
+  async function handleImageUpload() {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
@@ -602,59 +620,51 @@
       const files = Array.from(e.target.files)
       if (files.length === 0) return
 
-      for (const file of files) {
-        // Create preview
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          const preview = event.target.result
-          const timestamp = Date.now()
-          const tempPath = `./img/pending-${timestamp}-${file.name}`
+      const formData = new FormData()
+      files.forEach(file => formData.append('images', file))
 
-          stagedImages.push({
-            file,
-            preview,
-            tempPath,
-          })
+      try {
+        const res = await fetch(`/api/repo/${currentRepoId}/images/upload`, {
+          method: 'POST',
+          body: formData
+        })
+        const data = await res.json()
 
-          // Add to staged images list
-          const item = createImageItem(tempPath, file.name, true)
-          stagedImagesList.appendChild(item)
+        if (data.ok && data.uploaded.length > 0) {
+          // Insert images into editor
+          for (const uploaded of data.uploaded) {
+            const imagePath = `./img/${uploaded.name}`
+            const displayPath = `/repo/${currentRepoId}/img/${uploaded.name}`
 
-          // Insert markdown at cursor position in Monaco
-          if (monacoEditor) {
-            const markdown = `![${file.name}](${tempPath})`
-            const position = monacoEditor.getPosition()
-            monacoEditor.executeEdits('', [{
-              range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
-              text: markdown,
-              forceMoveMarkers: true,
-            }])
-            isDirty = true
+            if (currentMode === 'monaco' && monacoEditor) {
+              // Insert markdown at cursor position in Monaco
+              const markdown = `![${uploaded.name}](${imagePath})`
+              const position = monacoEditor.getPosition()
+              monacoEditor.executeEdits('', [{
+                range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                text: markdown,
+                forceMoveMarkers: true,
+              }])
+            } else if (currentMode === 'tiptap' && quillEditor) {
+              // Insert image at cursor position in Quill
+              const range = quillEditor.getSelection(true)
+              quillEditor.insertEmbed(range.index, 'image', displayPath)
+              quillEditor.setSelection(range.index + 1)
+            }
           }
-        }
-        reader.readAsDataURL(file)
-      }
 
-      // Show notification for staged images
-      showToast('图片已暂存，保存笔记时将上传到仓库。')
+          isDirty = true
+          loadExistingImages() // Refresh image list
+          showToast('图片已保存到仓库的 `img/` 目录。\n如需管理图片，请使用图片面板。')
+        } else {
+          alert('图片上传失败：' + (data.error || '未知错误'))
+        }
+      } catch (err) {
+        alert('图片上传失败：' + err.message)
+      }
     })
 
     input.click()
-  }
-
-  // Update staged images list display
-  function updateStagedImagesList() {
-    if (!stagedImagesList) return
-    
-    if (stagedImages.length === 0) {
-      stagedImagesList.innerHTML = '<div class="image-empty">暂无暂存图片</div>'
-    } else {
-      stagedImagesList.innerHTML = ''
-      stagedImages.forEach(img => {
-        const item = createImageItem(img.tempPath, img.file.name, true)
-        stagedImagesList.appendChild(item)
-      })
-    }
   }
 
   // Start

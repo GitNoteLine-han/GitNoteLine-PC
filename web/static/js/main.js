@@ -215,10 +215,10 @@
       const title = notePath.split('/').pop().replace(/\.md$/, '')
       notePreviewTitle.textContent = title
 
-      // Rewrite ./ paths to /repo/<repo_id>/ for display
+      // Rewrite image paths for display: ./img/xxx -> /repo/<repo_id>/img/xxx
       const displayContent = data.content.replace(
-        /\.\//g,
-        `/repo/${currentRepo}/`
+        /!\[([^\]]*)\]\(\.\/img\/([^)]+)\)/g,
+        `![$1](/repo/${currentRepo}/img/$2)`
       )
 
       // Render Markdown to HTML

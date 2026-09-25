@@ -296,11 +296,12 @@
     }
 
     .image-thumbnail {
-      width: 40px;
-      height: 40px;
+      width: 50px;
+      height: 50px;
       object-fit: cover;
       border-radius: 4px;
       background: var(--gray-100);
+      border: 1px solid var(--gray-200);
     }
 
     .image-info {
@@ -340,6 +341,21 @@
       text-align: center;
       color: var(--gray-500);
       font-size: 0.8rem;
+    }
+
+    .image-view-more {
+      text-align: center;
+      padding: 8px 12px;
+      margin: 8px 0;
+      font-size: 0.8rem;
+      color: var(--blue-600);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.15s ease;
+    }
+
+    .image-view-more:hover {
+      background: var(--blue-50);
     }
 
     #tiptap-container {
@@ -494,35 +510,30 @@
         <button class="btn-save" id="btn-save">保存</button>
       </div>
     </div>
-    
+
     <div class="editor-main">
-      <!-- Monaco mode with split view and image panel -->
-      <div id="monaco-mode" class="hidden" style="display: flex; width: 100%; height: 100%;">
-        <!-- Image panel (left) -->
-        <div class="image-panel" id="image-panel">
-          <div class="image-panel-header">
-            <h3>
-              <img src="/icons/images-solid-full.svg" alt="图片" width="16" height="16" style="vertical-align: middle; margin-right: 6px;">
-              图片管理
-            </h3>
-            <button class="btn-upload" id="btn-upload-image" title="上传图片">+</button>
-          </div>
-          <div class="image-section">
-            <div class="image-section-title">已有图片</div>
-            <div class="image-list" id="existing-images">
-              <!-- Existing images will be loaded here -->
-            </div>
-          </div>
-          <div class="image-section">
-            <div class="image-section-title">暂存图片</div>
-            <div class="image-list" id="staged-images">
-              <!-- Staged images will appear here -->
-            </div>
+      <!-- Image panel (left, shared between modes) -->
+      <div class="image-panel" id="image-panel">
+        <div class="image-panel-header">
+          <h3>
+            <img src="/icons/images-solid-full.svg" alt="图片" width="16" height="16" style="vertical-align: middle; margin-right: 6px;">
+            图片管理
+          </h3>
+          <button class="btn-upload" id="btn-upload-image" title="上传图片">+</button>
+        </div>
+        <div class="image-section">
+          <div class="image-section-title">仓库图片</div>
+          <div class="image-list" id="existing-images">
+            <!-- Existing images will be loaded here -->
           </div>
         </div>
-        
-        <!-- Editor and preview (right) -->
-        <div style="flex: 1; display: flex; flex-direction: column;">
+      </div>
+
+      <!-- Editor area (right) -->
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <!-- Monaco mode with split view -->
+        <div id="monaco-mode" class="hidden" style="display: flex; width: 100%; height: 100%;">
+          <!-- Editor and preview (split) -->
           <div style="flex: 1; display: flex;">
             <div class="editor-pane split">
               <div id="monaco-container"></div>
@@ -532,11 +543,11 @@
             </div>
           </div>
         </div>
-      </div>
-      
-      <!-- TipTap mode (now using Quill) -->
-      <div id="tiptap-mode" class="hidden" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
-        <div id="quill-editor" style="flex: 1; overflow-y: auto;"></div>
+
+        <!-- TipTap mode (now using Quill) -->
+        <div id="tiptap-mode" class="hidden" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+          <div id="quill-editor" style="flex: 1; overflow-y: auto;"></div>
+        </div>
       </div>
     </div>
   </div>
