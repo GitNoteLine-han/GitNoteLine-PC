@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitNoteLine</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="main-layout">
+  <!-- Top navigation bar -->
+  <header class="main-header">
+    <div class="brand">GitNoteLine</div>
+    <div class="header-actions">
+      <button class="btn-icon" title="设置">⚙️</button>
+    </div>
+  </header>
+
+  <!-- Main content area -->
+  <div class="main-content">
+    <!-- Left sidebar -->
+    <aside class="sidebar">
+      <!-- Repository selector -->
+      <div class="repo-selector">
+        <select id="repo-select" class="repo-select">
+          <option value="">加载中...</option>
+        </select>
+        <span class="dropdown-arrow">▼</span>
+      </div>
+
+      <!-- Notes list -->
+      <div class="notes-list" id="notes-list">
+        <!-- Notes will be dynamically inserted here -->
+      </div>
+
+      <!-- New note button -->
+      <button class="btn-new-note" id="btn-new-note" title="新建笔记">
+        <span class="plus-icon">+</span>
+      </button>
+    </aside>
+
+    <!-- Right content area - Note viewer -->
+    <main class="note-viewer">
+      <div class="note-viewer-placeholder" id="note-placeholder">
+        <p>选择一个笔记开始查看</p>
+      </div>
+      <div class="note-content" id="note-content" style="display: none;">
+        <pre id="note-text"></pre>
+      </div>
+    </main>
+  </div>
+
+  <!-- New note dialog -->
+  <dialog id="new-note-dialog" class="dialog">
+    <form id="new-note-form" class="dialog-form">
+      <h3>新建笔记</h3>
+      <div class="form-field">
+        <label for="note-name-input">笔记名称</label>
+        <div class="input-with-suffix">
+          <input type="text" id="note-name-input" placeholder="例如：日记/2026-01-01" required>
+          <span class="input-suffix">.md</span>
+        </div>
+        <p class="field-hint">支持子目录，例如：工作/项目笔记</p>
+      </div>
+      <div class="dialog-error" id="dialog-error"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn-secondary" id="btn-cancel-note">取消</button>
+        <button type="submit" class="btn-primary">创建</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

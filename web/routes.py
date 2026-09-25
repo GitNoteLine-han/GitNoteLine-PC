@@ -54,10 +54,8 @@ def apitest():
 
 @main_bp.route("/")
 def index():
-    # Placeholder for the real main page
-    # When DB exists, this will be the app entry point
-    # When DB doesn't exist, before_request will redirect to /init/1
-    return "<p>GitNoteLine - 主页面开发中...</p>", 200
+    """Main page - note management interface."""
+    return current_app.send_static_file("main.html")
 
 
 @main_bp.route("/init/1")
@@ -345,3 +343,147 @@ def api_init_step2_4():
         return jsonify(result), 400
 
     return jsonify(result)
+
+
+# ── Notes API ───────────────────────────────────────────────────────
+
+
+@main_bp.route("/api/notes/list")
+def api_notes_list():
+    """List all .md files in the repository (with subdirectory support)."""
+    db_path = current_app.config.get("DB_PATH", "")
+    
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    # Get the first repository (current version only supports one)
+    repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+    conn.close()
+    
+    if not repo:
+        return jsonify({"ok": False, "error": "未配置仓库"}), 404
+    
+    repo_path = Path(repo["path"])
+    if not repo_path.exists():
+        return jsonify({"ok": False, "error": "仓库路径不存在"}), 404
+    
+    # Find all .md files
+    notes = []
+    for md_file in repo_path.rglob("*.md"):
+        # Skip hidden files and .git directory
+        if any(part.startswith('.') for part in md_file.relative_to(repo_path).parts):
+            continue
+        
+        # Get relative path from repo root
+        rel_path = md_file.relative_to(repo_path)
+        # Remove .md extension for display
+        note_name = str(rel_path.with_suffix(''))
+        
+        notes.append({
+            "name": note_name,
+            "path": str(rel_path),
+        })
+    
+    # Sort by filename
+    notes.sort(key=lambda x: x["name"].lower())
+    
+    return jsonify({"ok": True, "notes": notes})
+
+
+@main_bp.route("/api/notes/<path:note_path>")
+def api_notes_get(note_path):
+    """Get note content."""
+    db_path = current_app.config.get("DB_PATH", "")
+    
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+    conn.close()
+    
+    if not repo:
+        return jsonify({"ok": False, "error": "未配置仓库"}), 404
+    
+    repo_path = Path(repo["path"])
+    
+    # Add .md extension if not present
+    if not note_path.endswith('.md'):
+        note_path = note_path + '.md'
+    
+    note_file = repo_path / note_path
+    
+    # Security check: ensure the file is within the repo
+    try:
+        note_file.resolve().relative_to(repo_path.resolve())
+    except ValueError:
+        return jsonify({"ok": False, "error": "无效的路径"}), 400
+    
+    if not note_file.exists():
+        return jsonify({"ok": False, "error": "笔记不存在"}), 404
+    
+    try:
+        content = note_file.read_text(encoding='utf-8')
+        return jsonify({"ok": True, "content": content, "path": note_path})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"读取失败: {str(e)}"}), 500
+
+
+@main_bp.route("/api/notes", methods=["POST"])
+def api_notes_create():
+    """Create a new note."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"ok": False, "error": "请求体为空"}), 400
+    
+    note_name = (data.get("name") or "").strip()
+    content = data.get("content", "")
+    
+    if not note_name:
+        return jsonify({"ok": False, "error": "笔记名称不能为空"}), 400
+    
+    # Security check: prevent path traversal
+    if '..' in note_name or note_name.startswith('/'):
+        return jsonify({"ok": False, "error": "无效的笔记名称"}), 400
+    
+    db_path = current_app.config.get("DB_PATH", "")
+    
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    repo = conn.execute("SELECT path FROM repositories LIMIT 1").fetchone()
+    conn.close()
+    
+    if not repo:
+        return jsonify({"ok": False, "error": "未配置仓库"}), 404
+    
+    repo_path = Path(repo["path"])
+    
+    # Add .md extension if not present
+    if not note_name.endswith('.md'):
+        note_name = note_name + '.md'
+    
+    note_file = repo_path / note_name
+    
+    # Security check: ensure the file is within the repo
+    try:
+        note_file.resolve().relative_to(repo_path.resolve())
+    except ValueError:
+        return jsonify({"ok": False, "error": "无效的路径"}), 400
+    
+    # Check if file already exists
+    if note_file.exists():
+        return jsonify({"ok": False, "error": "笔记已存在"}), 409
+    
+    try:
+        # Create parent directories if needed
+        note_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write the file
+        note_file.write_text(content, encoding='utf-8')
+        
+        return jsonify({"ok": True, "path": note_name})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"创建失败: {str(e)}"}), 500
