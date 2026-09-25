@@ -215,8 +215,14 @@
       const title = notePath.split('/').pop().replace(/\.md$/, '')
       notePreviewTitle.textContent = title
 
+      // Rewrite ./ paths to /repo/<repo_id>/ for display
+      const displayContent = data.content.replace(
+        /\.\//g,
+        `/repo/${currentRepo}/`
+      )
+
       // Render Markdown to HTML
-      notePreviewContent.innerHTML = marked.parse(data.content)
+      notePreviewContent.innerHTML = marked.parse(displayContent)
     } catch (err) {
       console.error('Failed to preview note:', err)
     }

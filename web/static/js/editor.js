@@ -239,7 +239,12 @@
     if (monacoEditor && previewContent) {
       const markdown = monacoEditor.getValue()
       try {
-        previewContent.innerHTML = marked.parse(markdown)
+        // Rewrite ./ paths to /repo/<repo_id>/ for display
+        const displayMarkdown = markdown.replace(
+          /\.\//g,
+          `/repo/${currentRepoId}/`
+        )
+        previewContent.innerHTML = marked.parse(displayMarkdown)
       } catch (err) {
         console.error('Failed to parse markdown:', err)
         previewContent.innerHTML = '<p style="color: red;">预览渲染失败</p>'
@@ -255,22 +260,32 @@
     tiptapMode.classList.remove('hidden')
 
     if (!quillEditor) {
-      // Initialize Quill editor
+      // Initialize Quill editor with custom image handler
       quillEditor = new Quill('#quill-editor', {
         theme: 'snow',
         modules: {
-          toolbar: [
-            ['bold', 'italic', 'strike'],
-            [{ 'header': [1, 2, 3, false] }],
-            ['list', 'bullet', 'code-block'],
-            ['link', 'image'],
-            ['clean']
-          ]
+          toolbar: {
+            container: [
+              ['bold', 'italic', 'strike'],
+              [{ 'header': [1, 2, 3, false] }],
+              ['list', 'bullet', 'code-block'],
+              ['link', 'image'],
+              ['clean']
+            ],
+            handlers: {
+              image: handleQuillImage
+            }
+          }
         }
       })
 
       // Convert Markdown to HTML and set content
-      const htmlContent = marked.parse(noteContent)
+      // Rewrite ./img/ paths to /repo/<repo_id>/img/ for display
+      const displayContent = noteContent.replace(
+        /\.\//g,
+        `/repo/${currentRepoId}/`
+      )
+      const htmlContent = marked.parse(displayContent)
       quillEditor.root.innerHTML = htmlContent
 
       // Track changes
@@ -279,9 +294,75 @@
       })
     } else {
       // Update content
-      const htmlContent = marked.parse(noteContent)
+      const displayContent = noteContent.replace(
+        /\.\//g,
+        `/repo/${currentRepoId}/`
+      )
+      const htmlContent = marked.parse(displayContent)
       quillEditor.root.innerHTML = htmlContent
     }
+  }
+
+  // Custom image handler for Quill - uploads immediately
+  async function handleQuillImage() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.click()
+
+    input.onchange = async () => {
+      const file = input.files[0]
+      if (!file) return
+
+      const formData = new FormData()
+      formData.append('images', file)
+
+      try {
+        const res = await fetch(`/api/repo/${currentRepoId}/images/upload`, {
+          method: 'POST',
+          body: formData
+        })
+        const data = await res.json()
+
+        if (data.ok && data.uploaded.length > 0) {
+          const uploaded = data.uploaded[0]
+          // Insert image with display path
+          const range = quillEditor.getSelection(true)
+          quillEditor.insertEmbed(range.index, 'image', `/repo/${currentRepoId}/${uploaded.path}`)
+          quillEditor.setSelection(range.index + 1)
+
+          // Show notification
+          showToast('图片已保存到仓库的 `img/` 目录。\n如需管理图片，请使用右侧图片面板。')
+          isDirty = true
+        } else {
+          alert('图片上传失败：' + (data.error || '未知错误'))
+        }
+      } catch (err) {
+        alert('图片上传失败：' + err.message)
+      }
+    }
+  }
+
+  // Show toast notification
+  function showToast(message) {
+    const toast = document.createElement('div')
+    toast.className = 'toast-notification'
+    toast.innerHTML = `
+      <div class="toast-content">
+        <span class="toast-icon">✓</span>
+        <span class="toast-message">${message.replace(/\n/g, '<br>')}</span>
+      </div>
+    `
+    document.body.appendChild(toast)
+
+    // Animate in
+    setTimeout(() => toast.classList.add('show'), 10)
+
+    // Remove after 4 seconds
+    setTimeout(() => {
+      toast.classList.remove('show')
+      setTimeout(() => toast.remove(), 300)
+    }, 4000)
   }
 
   // Switch between modes
@@ -327,6 +408,13 @@
       const turndownService = new TurndownService()
       content = turndownService.turndown(quillEditor.root.innerHTML)
     }
+
+    // Convert display paths back to relative paths for storage
+    // /repo/<repo_id>/ -> ./
+    content = content.replace(
+      new RegExp(`/repo/${currentRepoId}/`, 'g'),
+      './'
+    )
 
     // Get repo_id from URL
     const urlParams = new URLSearchParams(window.location.search)
@@ -493,7 +581,9 @@
 
     // Drag start event
     item.addEventListener('dragstart', (e) => {
-      const markdown = `![${imageName}](${imagePath})`
+      // Use ./ prefix for relative paths in Markdown
+      const mdPath = imagePath.startsWith('./') ? imagePath : './' + imagePath
+      const markdown = `![${imageName}](${mdPath})`
       e.dataTransfer.setData('text/plain', markdown)
       e.dataTransfer.effectAllowed = 'copy'
     })
@@ -501,7 +591,7 @@
     return item
   }
 
-  // Handle image upload
+  // Handle image upload (staging for Monaco mode)
   function handleImageUpload() {
     const input = document.createElement('input')
     input.type = 'file'
@@ -518,8 +608,8 @@
         reader.onload = (event) => {
           const preview = event.target.result
           const timestamp = Date.now()
-          const tempPath = `img/pending-${timestamp}-${file.name}`
-          
+          const tempPath = `./img/pending-${timestamp}-${file.name}`
+
           stagedImages.push({
             file,
             preview,
@@ -544,6 +634,9 @@
         }
         reader.readAsDataURL(file)
       }
+
+      // Show notification for staged images
+      showToast('图片已暂存，保存笔记时将上传到仓库。')
     })
 
     input.click()

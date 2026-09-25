@@ -703,6 +703,43 @@ def api_repo_images_upload(repo_id):
     return jsonify({"ok": True, "uploaded": uploaded})
 
 
+@main_bp.route("/repo/<int:repo_id>/<path:filename>")
+def serve_repo_file(repo_id, filename):
+    """Serve files from the repository directory.
+    
+    Blocks access to .git and .gitnoteline.yaml for security.
+    """
+    from flask import send_from_directory
+
+    # Security: block access to sensitive files
+    if filename.startswith('.git') or filename == '.gitnoteline.yaml':
+        return jsonify({"ok": False, "error": "禁止访问"}), 403
+
+    db_path = current_app.config.get("DB_PATH", "")
+
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    conn.close()
+
+    if not repo:
+        return jsonify({"ok": False, "error": "仓库不存在"}), 404
+
+    repo_path = Path(repo["path"])
+    file_path = (repo_path / filename).resolve()
+
+    # Security: ensure path doesn't escape repo directory
+    if not str(file_path).startswith(str(repo_path.resolve())):
+        return jsonify({"ok": False, "error": "无效的路径"}), 400
+
+    if not file_path.exists() or not file_path.is_file():
+        return jsonify({"ok": False, "error": "文件不存在"}), 404
+
+    return send_from_directory(str(repo_path), filename)
+
+
 @main_bp.route("/api/notes", methods=["POST"])
 def api_notes_create():
     """Create a new note."""
