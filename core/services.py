@@ -441,3 +441,482 @@ def init_step2_1(
     except Exception as e:
         conn.close()
         return {"ok": False, "error": str(e)}
+
+
+def init_step2_2(
+    db_path: str,
+    remote_url: str,
+    local_path: str,
+    credential_name: str,
+    credential_type: str,
+    credential_secret: str,
+) -> dict:
+    """Clone an existing remote repository.
+
+    Args:
+        db_path: Path to the database
+        remote_url: Remote git URL to clone
+        local_path: Local path for the cloned repository
+        credential_name: User-friendly name for the credential
+        credential_type: "password" or "fine_grained"
+        credential_secret: The token/password
+
+    Returns:
+        dict with 'ok', 'error', 'credential_id', 'repo_id'
+    """
+    # Extract host from URL
+    host = ""
+    if remote_url:
+        try:
+            parsed = urlparse(remote_url)
+            host = parsed.netloc
+        except Exception:
+            pass
+
+    conn = ensure_db(db_path)
+
+    try:
+        # Create credential record
+        cursor = conn.execute(
+            "INSERT INTO credentials (name, type, host) VALUES (?, ?, ?)",
+            (credential_name, credential_type, host),
+        )
+        credential_id = cursor.lastrowid
+
+        # Store encrypted secret in database
+        if not store_credential(conn, credential_id, credential_secret):
+            conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+            conn.commit()
+            conn.close()
+            return {"ok": False, "error": "无法加密存储凭证"}
+
+        # Get identity settings for git config
+        git_name = conn.execute("SELECT value FROM settings WHERE key = 'git_name'").fetchone()
+        git_email = conn.execute("SELECT value FROM settings WHERE key = 'git_email'").fetchone()
+
+        # Get credential for authentication
+        token = get_credential(conn, credential_id)
+
+        if not token:
+            conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+            conn.commit()
+            conn.close()
+            return {"ok": False, "error": "无法获取凭证"}
+
+        # Build authenticated URL for HTTPS clone
+        parsed = urlparse(remote_url)
+        if parsed.scheme in ("http", "https"):
+            auth_url = remote_url.replace(
+                f"{parsed.scheme}://{parsed.netloc}",
+                f"{parsed.scheme}://{token}@{parsed.netloc}"
+            )
+        else:
+            auth_url = remote_url
+
+        # Set environment to disable interactive credential prompts
+        git_env = os.environ.copy()
+        git_env["GIT_TERMINAL_PROMPT"] = "0"
+
+        # Git clone
+        repo_path = Path(local_path)
+        clone_result = subprocess.run(
+            ["git", "clone", auth_url, str(repo_path)],
+            capture_output=True, text=True, timeout=60,
+            env=git_env,
+        )
+
+        if clone_result.returncode != 0:
+            conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+            conn.commit()
+            conn.close()
+            stderr = clone_result.stderr.lower()
+            if ("authentication" in stderr or "403" in stderr or "401" in stderr or
+                "could not read password" in stderr or "terminal prompts disabled" in stderr):
+                return {"ok": False, "error": "认证失败，请检查凭证是否正确"}
+            elif "could not resolve" in stderr or "unable to access" in stderr:
+                return {"ok": False, "error": "网络错误，无法连接远程仓库"}
+            else:
+                return {"ok": False, "error": f"克隆失败: {clone_result.stderr}"}
+
+        # Configure git user for this repo
+        if git_name and git_email:
+            subprocess.run(
+                ["git", "config", "user.name", git_name["value"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", git_email["value"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+
+        # Restore original URL (without token)
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", remote_url],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+        # Create repository record
+        cursor = conn.execute(
+            "INSERT INTO repositories (path, remote_url, credential_id) VALUES (?, ?, ?)",
+            (str(repo_path), remote_url, credential_id),
+        )
+        repo_id = cursor.lastrowid
+
+        conn.commit()
+
+        # ── Verification flow: write YAML → push ──────────
+        # Set authenticated URL temporarily
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", auth_url],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+        # Step 1: Write .gitnoteline.yaml
+        try:
+            _write_gitnoteline_yaml(repo_path)
+        except Exception as e:
+            # Rollback: delete credential and repo record, but preserve cloned repo
+            conn.execute("DELETE FROM repositories WHERE id = ?", (repo_id,))
+            conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+            conn.commit()
+            conn.close()
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", remote_url],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+            return {"ok": False, "error": f"写入配置文件失败: {str(e)}"}
+
+        # Step 2: git add + commit + push
+        subprocess.run(
+            ["git", "add", ".gitnoteline.yaml"],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+        subprocess.run(
+            ["git", "commit", "-m", "Add GitNoteLine configuration"],
+            cwd=repo_path, capture_output=True, text=True, timeout=10,
+        )
+
+        # Get current branch name
+        branch_result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=repo_path, capture_output=True, text=True, timeout=5,
+        )
+        current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "main"
+
+        push_result = subprocess.run(
+            ["git", "push", "-u", "origin", current_branch],
+            cwd=repo_path, capture_output=True, text=True, timeout=30,
+            env=git_env,
+        )
+
+        if push_result.returncode != 0:
+            # Rollback: delete credential and repo record, but preserve cloned repo
+            conn.execute("DELETE FROM repositories WHERE id = ?", (repo_id,))
+            conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+            conn.commit()
+            conn.close()
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", remote_url],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+            stderr = push_result.stderr.lower()
+            if ("authentication" in stderr or "403" in stderr or "401" in stderr or
+                "could not read password" in stderr or "terminal prompts disabled" in stderr):
+                return {"ok": False, "error": "推送失败，认证失败，请检查凭证"}
+            else:
+                return {"ok": False, "error": f"推送失败: {push_result.stderr}"}
+
+        # Restore original URL (without token)
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", remote_url],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+        conn.close()
+        return {"ok": True, "credential_id": credential_id, "repo_id": repo_id}
+
+    except Exception as e:
+        conn.close()
+        return {"ok": False, "error": str(e)}
+
+
+def init_step2_3(
+    db_path: str,
+    local_path: str,
+    credential_name: str = "",
+    credential_type: str = "",
+    credential_secret: str = "",
+) -> dict:
+    """Link an existing local repository.
+
+    Args:
+        db_path: Path to the database
+        local_path: Path to existing Git repository
+        credential_name: Optional - user-friendly name for the credential
+        credential_type: Optional - "password" or "fine_grained"
+        credential_secret: Optional - the token/password
+
+    Returns:
+        dict with 'ok', 'error', 'credential_id', 'repo_id'
+    """
+    repo_path = Path(local_path)
+
+    # Verify it's a valid Git repository
+    if not repo_path.exists():
+        return {"ok": False, "error": "路径不存在"}
+
+    git_dir = repo_path / ".git"
+    if not git_dir.exists():
+        return {"ok": False, "error": "不是有效的 Git 仓库"}
+
+    # Check if remote (origin) exists
+    remote_result = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=repo_path, capture_output=True, text=True, timeout=5,
+    )
+
+    has_remote = remote_result.returncode == 0
+    remote_url = remote_result.stdout.strip() if has_remote else ""
+
+    conn = ensure_db(db_path)
+
+    try:
+        credential_id = None
+
+        # If has remote and credentials provided, store them
+        if has_remote and credential_name and credential_secret:
+            # Extract host from URL
+            host = ""
+            if remote_url:
+                try:
+                    parsed = urlparse(remote_url)
+                    host = parsed.netloc
+                except Exception:
+                    pass
+
+            # Create credential record
+            cursor = conn.execute(
+                "INSERT INTO credentials (name, type, host) VALUES (?, ?, ?)",
+                (credential_name, credential_type or "password", host),
+            )
+            credential_id = cursor.lastrowid
+
+            # Store encrypted secret in database
+            if not store_credential(conn, credential_id, credential_secret):
+                conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+                conn.commit()
+                conn.close()
+                return {"ok": False, "error": "无法加密存储凭证"}
+
+        # Create repository record
+        cursor = conn.execute(
+            "INSERT INTO repositories (path, remote_url, credential_id) VALUES (?, ?, ?)",
+            (str(repo_path), remote_url if has_remote else None, credential_id),
+        )
+        repo_id = cursor.lastrowid
+
+        conn.commit()
+
+        # Write .gitnoteline.yaml
+        try:
+            _write_gitnoteline_yaml(repo_path)
+        except Exception as e:
+            # Rollback
+            conn.execute("DELETE FROM repositories WHERE id = ?", (repo_id,))
+            if credential_id:
+                conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+            conn.commit()
+            conn.close()
+            return {"ok": False, "error": f"写入配置文件失败: {str(e)}"}
+
+        # If has remote and credentials, do push test
+        if has_remote and credential_id:
+            # Get identity settings for git config
+            git_name = conn.execute("SELECT value FROM settings WHERE key = 'git_name'").fetchone()
+            git_email = conn.execute("SELECT value FROM settings WHERE key = 'git_email'").fetchone()
+
+            if git_name and git_email:
+                subprocess.run(
+                    ["git", "config", "user.name", git_name["value"]],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+                subprocess.run(
+                    ["git", "config", "user.email", git_email["value"]],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+
+            # Get credential for authentication
+            token = get_credential(conn, credential_id)
+
+            if token:
+                # Build authenticated URL for HTTPS
+                parsed = urlparse(remote_url)
+                if parsed.scheme in ("http", "https"):
+                    auth_url = remote_url.replace(
+                        f"{parsed.scheme}://{parsed.netloc}",
+                        f"{parsed.scheme}://{token}@{parsed.netloc}"
+                    )
+                else:
+                    auth_url = remote_url
+
+                # Set environment to disable interactive credential prompts
+                git_env = os.environ.copy()
+                git_env["GIT_TERMINAL_PROMPT"] = "0"
+
+                # Temporarily set authenticated remote
+                subprocess.run(
+                    ["git", "remote", "set-url", "origin", auth_url],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+
+                # git add + commit + push
+                subprocess.run(
+                    ["git", "add", ".gitnoteline.yaml"],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+
+                subprocess.run(
+                    ["git", "commit", "-m", "Add GitNoteLine configuration"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=10,
+                )
+
+                # Get current branch name
+                branch_result = subprocess.run(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                    cwd=repo_path, capture_output=True, text=True, timeout=5,
+                )
+                current_branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "main"
+
+                push_result = subprocess.run(
+                    ["git", "push", "-u", "origin", current_branch],
+                    cwd=repo_path, capture_output=True, text=True, timeout=30,
+                    env=git_env,
+                )
+
+                # Restore original URL (without token)
+                subprocess.run(
+                    ["git", "remote", "set-url", "origin", remote_url],
+                    cwd=repo_path, capture_output=True, timeout=5,
+                )
+
+                if push_result.returncode != 0:
+                    # Rollback: delete credential and repo record, but preserve user's repo
+                    conn.execute("DELETE FROM repositories WHERE id = ?", (repo_id,))
+                    conn.execute("DELETE FROM credentials WHERE id = ?", (credential_id,))
+                    conn.commit()
+                    conn.close()
+                    stderr = push_result.stderr.lower()
+                    if ("authentication" in stderr or "403" in stderr or "401" in stderr or
+                        "could not read password" in stderr or "terminal prompts disabled" in stderr):
+                        return {"ok": False, "error": "推送失败，认证失败，请检查凭证"}
+                    else:
+                        return {"ok": False, "error": f"推送失败: {push_result.stderr}"}
+
+        elif not has_remote:
+            # No remote, just commit the YAML
+            subprocess.run(
+                ["git", "add", ".gitnoteline.yaml"],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+
+            subprocess.run(
+                ["git", "commit", "-m", "Add GitNoteLine configuration"],
+                cwd=repo_path, capture_output=True, text=True, timeout=10,
+            )
+
+        conn.close()
+        return {"ok": True, "credential_id": credential_id, "repo_id": repo_id}
+
+    except Exception as e:
+        conn.close()
+        return {"ok": False, "error": str(e)}
+
+
+def init_step2_4(
+    db_path: str,
+    local_path: str,
+) -> dict:
+    """Create a local-only repository (no remote).
+
+    Args:
+        db_path: Path to the database
+        local_path: Local path for the repository
+
+    Returns:
+        dict with 'ok', 'error', 'repo_id'
+    """
+    conn = ensure_db(db_path)
+
+    try:
+        # Create local repository directory
+        repo_path = Path(local_path)
+        repo_path.mkdir(parents=True, exist_ok=True)
+
+        # Git init
+        result = subprocess.run(
+            ["git", "init"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            conn.close()
+            import shutil
+            shutil.rmtree(repo_path, ignore_errors=True)
+            return {"ok": False, "error": f"Git 初始化失败: {result.stderr}"}
+
+        # Get identity settings for git config
+        git_name = conn.execute("SELECT value FROM settings WHERE key = 'git_name'").fetchone()
+        git_email = conn.execute("SELECT value FROM settings WHERE key = 'git_email'").fetchone()
+
+        if git_name and git_email:
+            subprocess.run(
+                ["git", "config", "user.name", git_name["value"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", git_email["value"]],
+                cwd=repo_path, capture_output=True, timeout=5,
+            )
+
+        # Create repository record (no remote, no credential)
+        cursor = conn.execute(
+            "INSERT INTO repositories (path, remote_url, credential_id) VALUES (?, NULL, NULL)",
+            (str(repo_path),),
+        )
+        repo_id = cursor.lastrowid
+
+        conn.commit()
+
+        # Write .gitnoteline.yaml
+        try:
+            _write_gitnoteline_yaml(repo_path)
+        except Exception as e:
+            # Rollback
+            conn.execute("DELETE FROM repositories WHERE id = ?", (repo_id,))
+            conn.commit()
+            conn.close()
+            import shutil
+            shutil.rmtree(repo_path, ignore_errors=True)
+            return {"ok": False, "error": f"写入配置文件失败: {str(e)}"}
+
+        # git add + commit (no push)
+        subprocess.run(
+            ["git", "add", ".gitnoteline.yaml"],
+            cwd=repo_path, capture_output=True, timeout=5,
+        )
+
+        subprocess.run(
+            ["git", "commit", "-m", "Initialize GitNoteLine repository"],
+            cwd=repo_path, capture_output=True, text=True, timeout=10,
+        )
+
+        conn.close()
+        return {"ok": True, "repo_id": repo_id}
+
+    except Exception as e:
+        conn.close()
+        return {"ok": False, "error": str(e)}
+

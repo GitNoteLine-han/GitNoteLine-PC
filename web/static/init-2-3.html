@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitNoteLine — 关联已有本地仓库</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="layout-center">
+
+  <div class="container">
+    <header class="header fade-in">
+      <h1 class="header-title">关联已有本地仓库</h1>
+      <p class="header-subtitle">选择本机上已有的 Git 仓库</p>
+    </header>
+
+    <div class="card fade-in">
+      <form id="form-step2-3" class="form" novalidate>
+        <!-- Local path -->
+        <div class="field">
+          <label class="field-label" for="field-local-path">本地仓库路径</label>
+          <input
+            type="text"
+            id="field-local-path"
+            class="field-input"
+            placeholder="/path/to/your/repo"
+            required
+          >
+          <p class="field-hint">输入已存在的 Git 仓库路径</p>
+        </div>
+
+        <!-- Repo info (shown after checking) -->
+        <div id="repo-info" class="repo-info hidden">
+          <div class="repo-info-row">
+            <span class="repo-info-label">仓库状态</span>
+            <span id="repo-status" class="repo-info-value"></span>
+          </div>
+          <div id="remote-info-row" class="repo-info-row hidden">
+            <span class="repo-info-label">远程仓库</span>
+            <span id="remote-url" class="repo-info-value"></span>
+          </div>
+        </div>
+
+        <!-- Check button -->
+        <button type="button" id="btn-check" class="btn btn-secondary btn-block">
+          <span id="check-text">检查仓库</span>
+          <svg id="check-spinner" class="spinner-svg spin hidden" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+        <!-- Credential fields (shown only if repo has remote) -->
+        <div id="credential-section" class="hidden">
+          <hr class="divider">
+          <p class="section-hint">该仓库已配置远程源，需要导入凭证以验证推送权限</p>
+
+          <!-- Credential name -->
+          <div class="field">
+            <label class="field-label" for="field-credential-name">凭证名称</label>
+            <input
+              type="text"
+              id="field-credential-name"
+              class="field-input"
+              placeholder="GitHub 个人账号"
+            >
+            <p class="field-hint">给这个凭证起个名字，方便识别</p>
+          </div>
+
+          <!-- Credential type -->
+          <div class="field">
+            <label class="field-label">凭证类型</label>
+            <div class="radio-group">
+              <label class="radio-item">
+                <input type="radio" name="credential-type" value="fine_grained" checked>
+                <span>精细化密钥</span>
+              </label>
+              <label class="radio-item">
+                <input type="radio" name="credential-type" value="password">
+                <span>通用密钥/密码</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- GitHub password warning -->
+          <div id="github-warning" class="warning-banner hidden">
+            GitHub 不支持密码认证，请使用 Personal Access Token
+          </div>
+
+          <!-- Credential secret -->
+          <div class="field">
+            <label class="field-label" for="field-credential-secret">凭证</label>
+            <input
+              type="password"
+              id="field-credential-secret"
+              class="field-input"
+              placeholder="输入你的 Token 或密码"
+            >
+            <p class="field-hint">将安全存储在系统钥匙串中</p>
+          </div>
+        </div>
+
+        <p id="form-error" class="form-error hidden"></p>
+
+        <button type="submit" id="btn-submit" class="btn btn-primary btn-block btn-lg hidden">
+          <span id="btn-text">关联仓库</span>
+          <svg id="btn-spinner" class="spinner-svg spin hidden" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api-adapter.js"></script>
+  <script src="/js/init-2-3.js"></script>
+</body>
+</html>

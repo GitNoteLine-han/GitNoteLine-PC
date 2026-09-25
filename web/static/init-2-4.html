@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitNoteLine — 创建本地仓库</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="layout-center">
+
+  <div class="container">
+    <header class="header fade-in">
+      <h1 class="header-title">创建本地仓库</h1>
+      <p class="header-subtitle">创建纯本地仓库，暂不同步到云端</p>
+    </header>
+
+    <div class="card fade-in">
+      <form id="form-step2-4" class="form" novalidate>
+        <!-- Local path -->
+        <div class="field">
+          <label class="field-label" for="field-local-path">本地路径</label>
+          <input
+            type="text"
+            id="field-local-path"
+            class="field-input"
+            placeholder="~/gitnoteline/notes"
+            required
+          >
+          <p class="field-hint">仓库在本机的存储位置</p>
+        </div>
+
+        <p class="section-hint">
+          创建一个纯本地的 Git 仓库，不会配置远程同步。你可以稍后在设置中添加远程仓库。
+        </p>
+
+        <p id="form-error" class="form-error hidden"></p>
+
+        <button type="submit" id="btn-submit" class="btn btn-primary btn-block btn-lg">
+          <span id="btn-text">创建仓库</span>
+          <svg id="btn-spinner" class="spinner-svg spin hidden" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api-adapter.js"></script>
+  <script src="/js/init-2-4.js"></script>
+</body>
+</html>

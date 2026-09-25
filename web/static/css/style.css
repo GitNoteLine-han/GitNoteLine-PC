@@ -549,6 +549,59 @@ body {
   line-height: 1.5;
 }
 
+/* ── Repo info (2/3) ───────────────────────────────────────────── */
+
+.repo-info {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.repo-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.repo-info-row + .repo-info-row {
+  border-top: 1px solid var(--gray-100);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.repo-info-label {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+  font-weight: 500;
+}
+
+.repo-info-value {
+  font-size: 0.9rem;
+  color: var(--gray-800);
+  font-weight: 600;
+  word-break: break-all;
+  text-align: right;
+  max-width: 70%;
+}
+
+/* ── Divider & section hint (2/3) ──────────────────────────────── */
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--gray-200);
+  margin: 20px 0;
+}
+
+.section-hint {
+  font-size: 0.85rem;
+  color: var(--gray-600);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────── */
 
 @media (max-width: 480px) {
