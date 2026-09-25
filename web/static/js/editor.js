@@ -174,7 +174,14 @@
   function updatePreview() {
     if (monacoEditor && previewContent) {
       const markdown = monacoEditor.getValue()
-      previewContent.innerHTML = marked.parse(markdown)
+      try {
+        previewContent.innerHTML = marked.parse(markdown)
+      } catch (err) {
+        console.error('Failed to parse markdown:', err)
+        previewContent.innerHTML = '<p style="color: red;">预览渲染失败</p>'
+      }
+    } else {
+      console.warn('Preview update skipped:', { monacoEditor: !!monacoEditor, previewContent: !!previewContent })
     }
   }
 
@@ -194,6 +201,10 @@
   // Setup toolbar buttons
   function setupToolbar() {
     toolbarButtons.forEach(btn => {
+      btn.addEventListener('mousedown', (e) => {
+        // Prevent default to keep focus on editor
+        e.preventDefault()
+      })
       btn.addEventListener('click', () => {
         const command = btn.dataset.command
         executeCommand(command)
@@ -203,6 +214,9 @@
 
   // Execute formatting command
   function executeCommand(command) {
+    // Ensure editor has focus
+    tiptapEditor.focus()
+    
     switch (command) {
       case 'bold':
         document.execCommand('bold', false, null)
