@@ -494,3 +494,9 @@ appimagetool 报错 `Icon entry not found in desktop file`。.desktop 文件必�
 → 修复：.desktop 添加 `Icon=gitnoteline`，同时用 printf 生成一个 1x1 的占位 PNG 作为 `gitnoteline.png`。后续可以替换成真正的图标。
 
 **教训：** AppImage 打包对 .desktop 文件要求严格，Icon 是必填项。用 `|| true` 隐藏错误是坏实践——问题不会消失，只会让你不知道包没打出来。
+
+**第五坑：ARM64 AppRun 路径写错**
+ARM64 构建报 `chmod: cannot access 'AppRun': No such file or directory`。x64 的写法是 `chmod +x AppDir/AppRun`，但 ARM64 那段漏了 `AppDir/` 前缀，写成了 `chmod +x AppRun`。复制粘贴时没对齐路径。
+→ 修复：改成 `chmod +x AppDir/AppRun`。
+
+**教训：** 多个 job 有相似逻辑时，复制粘贴要逐行核对路径。CI 报错信息很明确（文件不存在），直接定位问题。
