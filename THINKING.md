@@ -488,3 +488,9 @@ GitHub Actions 的 `run: |` 块里用 `cat << 'EOF'` 写文件，heredoc 内容�
 → 修复：改用 `printf` 写文件，`\n` 手动控制换行，不依赖 heredoc。
 
 **教训：** CI 工作流的坑和代码 bug 不一样——本地跑没问题，上了 CI 才暴露。文件名大小写、工具参数互斥、YAML 语法细节，这些都是"看起来对但实际不对"的典型。写工作流时宁可多查一遍文档，别假设"应该是对的"。
+
+**第四坑：AppImage 缺少 Icon 条目**
+appimagetool 报错 `Icon entry not found in desktop file`。.desktop 文件必须有 `Icon=` 字段，而且对应的图标文件必须存在于 AppDir 中。之前只写了 Name/Exec/Categories，漏了 Icon。
+→ 修复：.desktop 添加 `Icon=gitnoteline`，同时用 printf 生成一个 1x1 的占位 PNG 作为 `gitnoteline.png`。后续可以替换成真正的图标。
+
+**教训：** AppImage 打包对 .desktop 文件要求严格，Icon 是必填项。用 `|| true` 隐藏错误是坏实践——问题不会消失，只会让你不知道包没打出来。
