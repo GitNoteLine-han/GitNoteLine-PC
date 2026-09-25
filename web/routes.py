@@ -544,6 +544,97 @@ def api_notes_update(note_path):
         return jsonify({"ok": False, "error": f"保存失败: {str(e)}"}), 500
 
 
+@main_bp.route("/api/repo/<int:repo_id>/images")
+def api_repo_images(repo_id):
+    """List all images in the repository's img/ directory."""
+    db_path = current_app.config.get("DB_PATH", "")
+    
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    conn.close()
+    
+    if not repo:
+        return jsonify({"ok": False, "error": "仓库不存在"}), 404
+    
+    repo_path = Path(repo["path"])
+    img_dir = repo_path / "img"
+    
+    if not img_dir.exists():
+        return jsonify({"ok": True, "images": []})
+    
+    # List all image files
+    images = []
+    for img_file in img_dir.iterdir():
+        if img_file.is_file() and img_file.suffix.lower() in ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']:
+            images.append({
+                "name": img_file.name,
+                "path": f"img/{img_file.name}",
+                "size": img_file.stat().st_size,
+                "modified": img_file.stat().st_mtime,
+            })
+    
+    # Sort by modification time (newest first)
+    images.sort(key=lambda x: x["modified"], reverse=True)
+    
+    return jsonify({"ok": True, "images": images})
+
+
+@main_bp.route("/api/repo/<int:repo_id>/images/upload", methods=["POST"])
+def api_repo_images_upload(repo_id):
+    """Upload images to the repository's img/ directory."""
+    if 'images' not in request.files:
+        return jsonify({"ok": False, "error": "没有图片文件"}), 400
+    
+    files = request.files.getlist('images')
+    if not files:
+        return jsonify({"ok": False, "error": "没有选择文件"}), 400
+    
+    db_path = current_app.config.get("DB_PATH", "")
+    
+    import sqlite3
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    repo = conn.execute("SELECT path FROM repositories WHERE id = ?", (repo_id,)).fetchone()
+    conn.close()
+    
+    if not repo:
+        return jsonify({"ok": False, "error": "仓库不存在"}), 404
+    
+    repo_path = Path(repo["path"])
+    img_dir = repo_path / "img"
+    
+    # Create img directory if it doesn't exist
+    img_dir.mkdir(exist_ok=True)
+    
+    uploaded = []
+    for file in files:
+        if file and file.filename:
+            # Generate unique filename with timestamp
+            import time
+            from pathlib import PurePosixPath
+            original_name = PurePosixPath(file.filename).name
+            timestamp = int(time.time() * 1000)
+            name_parts = original_name.rsplit('.', 1)
+            if len(name_parts) == 2:
+                new_filename = f"{name_parts[0]}-{timestamp}.{name_parts[1]}"
+            else:
+                new_filename = f"{original_name}-{timestamp}"
+            
+            file_path = img_dir / new_filename
+            file.save(file_path)
+            
+            uploaded.append({
+                "name": new_filename,
+                "path": f"img/{new_filename}",
+            })
+    
+    return jsonify({"ok": True, "uploaded": uploaded})
+
+
 @main_bp.route("/api/notes", methods=["POST"])
 def api_notes_create():
     """Create a new note."""
