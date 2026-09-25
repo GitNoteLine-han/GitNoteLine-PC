@@ -372,29 +372,16 @@
         </div>
       </div>
       
-      <!-- TipTap mode -->
-      <div id="tiptap-mode" class="hidden" style="width: 100%; height: 100%;">
-        <div id="tiptap-toolbar" class="tiptap-toolbar">
-          <button class="toolbar-btn" data-command="bold" title="粗体"><b>B</b></button>
-          <button class="toolbar-btn" data-command="italic" title="斜体"><i>I</i></button>
-          <button class="toolbar-btn" data-command="strike" title="删除线"><s>S</s></button>
-          <span class="toolbar-separator"></span>
-          <button class="toolbar-btn" data-command="h1" title="标题 1">H1</button>
-          <button class="toolbar-btn" data-command="h2" title="标题 2">H2</button>
-          <button class="toolbar-btn" data-command="h3" title="标题 3">H3</button>
-          <span class="toolbar-separator"></span>
-          <button class="toolbar-btn" data-command="ul" title="无序列表">• 列表</button>
-          <button class="toolbar-btn" data-command="ol" title="有序列表">1. 列表</button>
-          <span class="toolbar-separator"></span>
-          <button class="toolbar-btn" data-command="code" title="代码">&lt;/&gt;</button>
-          <button class="toolbar-btn" data-command="codeBlock" title="代码块">```</button>
-        </div>
-        <div id="tiptap-container">
-          <div id="tiptap-editor" class="tiptap-editor" contenteditable="true"></div>
-        </div>
+      <!-- TipTap mode (now using Quill) -->
+      <div id="tiptap-mode" class="hidden" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+        <div id="quill-editor" style="flex: 1; overflow-y: auto;"></div>
       </div>
     </div>
   </div>
+
+  <!-- Load Quill.js for WYSIWYG editing -->
+  <link href="/lib/quill.snow.css" rel="stylesheet">
+  <script src="/lib/quill.js"></script>
 
   <!-- Load marked.js and turndown BEFORE Monaco (Monaco's loader creates AMD environment) -->
   <script src="/lib/marked.min.js"></script>

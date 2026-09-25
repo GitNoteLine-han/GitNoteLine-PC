@@ -11,6 +11,13 @@ URL: https://fontawesome.com/license/free
 License: MIT
 URL: https://github.com/microsoft/monaco-editor/blob/main/LICENSE.md
 
+### Quill.js
+License: BSD 3-Clause
+URL: https://github.com/slab/quill/blob/main/LICENSE
+Copyright: Copyright (c) 2017, Slab
+Copyright (c) 2014, Jason Chen
+Copyright (c) 2013, salesforce.com
+
 ### marked.js
 License: MIT
 URL: https://github.com/markedjs/marked/blob/master/LICENSE.md
@@ -18,10 +25,6 @@ URL: https://github.com/markedjs/marked/blob/master/LICENSE.md
 ### turndown
 License: MIT
 URL: https://github.com/mixmark-io/turndown/blob/master/LICENSE
-
-### TipTap (Planned)
-License: MIT
-URL: https://github.com/ueberdosis/tiptap/blob/main/LICENSE.md
 
 ## Python Dependencies
 
