@@ -470,3 +470,21 @@ Monaco 模式有 `updatePreview()` 做路径重写，但 Quill 模式在 syncPul
 → 修复：注册自定义 clipboard matcher，直接取 `node.getAttribute('src')` 原样保留，不让 Quill 碰路径。
 
 **教训：** 一个"图片不显示"的问题，涉及文件名编码、浏览器缓存、Git 同步、两种编辑器模式的路径转换、以及第三方库的内部行为。每一层修完都觉得"这次肯定好了"，结果刷新一下又出新问题。堪称洋葱式 debug 🧅
+
+### 📦 构建工作流三连坑
+
+**症状：** GitHub Actions 构建工作流，Linux 和 macOS 都报错。
+
+**第一坑：appimagetool 下载 404**
+wget 退出码 8（HTTP 错误）。URL 写的是 `appimagetool-x86_64.app`，实际文件名是 `appimagetool-x86_64.AppImage`（大写 A 和大写 I）。GitHub Releases 对大小写敏感，`.app` 和 `.AppImage` 是完全不同的文件。
+→ 修复：改成正确的 `.AppImage` 扩展名。
+
+**第二坑：PyInstaller spec 文件不接受 --windowed**
+macOS 构建时报错 `makespec options not valid when a .spec file is given`。用了 spec 文件就不能在命令行传 `--windowed`，这两个是互斥的入口。
+→ 修复：在 spec 文件里用 `sys.platform == 'darwin'` 自动判断平台，macOS 设 `console=False`（等同 --windowed），其他平台 `console=True`。命令行不再传 `--windowed`。
+
+**第三坑：YAML heredoc 缩进污染**
+GitHub Actions 的 `run: |` 块里用 `cat << 'EOF'` 写文件，heredoc 内容会带上 YAML 的缩进空格，导致生成的 `.desktop` 文件和 `control` 文件格式错误。
+→ 修复：改用 `printf` 写文件，`\n` 手动控制换行，不依赖 heredoc。
+
+**教训：** CI 工作流的坑和代码 bug 不一样——本地跑没问题，上了 CI 才暴露。文件名大小写、工具参数互斥、YAML 语法细节，这些都是"看起来对但实际不对"的典型。写工作流时宁可多查一遍文档，别假设"应该是对的"。
