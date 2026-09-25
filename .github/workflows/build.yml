@@ -107,7 +107,7 @@ jobs:
       - run: pip install -r requirements.txt pyinstaller
 
       - name: Build with PyInstaller
-        run: pyinstaller --windowed gitnoteline.spec
+        run: pyinstaller gitnoteline.spec
 
       - name: Zip .app bundle
         run: |

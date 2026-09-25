@@ -1,10 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import sys
 from pathlib import Path
 
 block_cipher = None
 project_root = os.path.abspath('.')
+is_macos = sys.platform == 'darwin'
 
 # Collect all data files, then exclude non-distributable directories
 all_datas = []
@@ -57,7 +59,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=not is_macos,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
